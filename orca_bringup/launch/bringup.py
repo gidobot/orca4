@@ -49,9 +49,10 @@ def generate_launch_description():
     nav2_params_file = os.path.join(orca_bringup_dir, 'params', 'nav2_params.yaml')
     orca_params_file = LaunchConfiguration('orca_params_file')
 
-    # get_package_share_directory('orb_slam2_ros') will fail if orb_slam2_ros isn't installed
-    orb_voc_file = os.path.join('install', 'orb_slam2_ros', 'share', 'orb_slam2_ros',
-                                'orb_slam2', 'Vocabulary', 'ORBvoc.txt')
+    orb_slam2_ros_dir = get_package_share_directory('orb_slam2_ros') #will fail if orb_slam2_ros isn't installed
+    orb_voc_file = os.path.join(orb_slam2_ros_dir, 'orb_slam2', 'Vocabulary', 'ORBvoc.txt')
+    # orb_voc_file = os.path.join('install', 'orb_slam2_ros', 'share', 'orb_slam2_ros',
+                                # 'orb_slam2', 'Vocabulary', 'ORBvoc.txt')
 
     # Rewrite to add the full path
     # The rewriter will only rewrite existing keys
@@ -142,7 +143,7 @@ def generate_launch_description():
 
         # Replacement for base_controller: complete the tf tree
         ExecuteProcess(
-            cmd=['/opt/ros/humble/lib/tf2_ros/static_transform_publisher',
+            cmd=['/opt/ros/jazzy/lib/tf2_ros/static_transform_publisher',
                  '--frame-id', 'map',
                  '--child-frame-id', 'slam'],
             output='screen',
@@ -150,7 +151,7 @@ def generate_launch_description():
         ),
 
         ExecuteProcess(
-            cmd=['/opt/ros/humble/lib/tf2_ros/static_transform_publisher',
+            cmd=['/opt/ros/jazzy/lib/tf2_ros/static_transform_publisher',
                  '--frame-id', 'map',
                  '--child-frame-id', 'odom'],
             output='screen',
@@ -158,7 +159,7 @@ def generate_launch_description():
         ),
 
         ExecuteProcess(
-            cmd=['/opt/ros/humble/lib/tf2_ros/static_transform_publisher',
+            cmd=['/opt/ros/jazzy/lib/tf2_ros/static_transform_publisher',
                  '--frame-id', 'odom',
                  '--child-frame-id', 'base_link'],
             output='screen',
@@ -167,7 +168,7 @@ def generate_launch_description():
 
         # Replacement for an URDF file: base_link->left_camera_link is static
         ExecuteProcess(
-            cmd=['/opt/ros/humble/lib/tf2_ros/static_transform_publisher',
+            cmd=['/opt/ros/jazzy/lib/tf2_ros/static_transform_publisher',
                  '--x', '-0.15',
                  '--y', '0.18',
                  '--z', '-0.0675',
@@ -179,7 +180,7 @@ def generate_launch_description():
 
         # Provide down frame to accommodate down-facing cameras
         ExecuteProcess(
-            cmd=['/opt/ros/humble/lib/tf2_ros/static_transform_publisher',
+            cmd=['/opt/ros/jazzy/lib/tf2_ros/static_transform_publisher',
                  '--pitch', str(math.pi/2),
                  '--frame-id', 'slam',
                  '--child-frame-id', 'down'],

@@ -13,11 +13,11 @@ jobs:
       fail-fast: false
 
       matrix:
-        ros_distribution: [humble]
+        ros_distribution: [jazzy]
 
         include:
-          - ros_distribution: humble
-            docker_image: rostooling/setup-ros-docker:ubuntu-jammy-ros-humble-ros-base-latest
+          - ros_distribution: jazzy
+            docker_image: rostooling/setup-ros-docker:ubuntu-jammy-ros-jazzy-ros-base-latest
 
     container:
       image: ${{ matrix.docker_image }}
