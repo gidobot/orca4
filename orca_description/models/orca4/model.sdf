@@ -46,7 +46,138 @@
              to the ArduPilot body frame (x-forward, y-right, z-down) -->
         <pose>0 0 0 3.141592653589793 0 0</pose>
         <always_on>1</always_on>
-        <update_rate>1000.0</update_rate>
+        <update_rate>100.0</update_rate>
+        <imu>
+          <angular_velocity>
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.005</stddev> <!-- CALIBRATED IMU: ~0.3 deg/s -->
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.0005</bias_stddev> <!-- LOW BIAS DRIFT -->
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.005</stddev>
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.0005</bias_stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.005</stddev>
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.0005</bias_stddev>
+              </noise>
+            </z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.05</stddev> <!-- CALIBRATED IMU: ~0.005g -->
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.005</bias_stddev> <!-- LOW BIAS DRIFT -->
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.05</stddev>
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.005</bias_stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.05</stddev>
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.005</bias_stddev>
+              </noise>
+            </z>
+          </linear_acceleration>
+        </imu>
+      </sensor>
+
+
+      <sensor name="dvl_sensor" type="custom" gz:type="dvl">
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <enable_metrics>true</enable_metrics>
+        <update_rate>8</update_rate>
+        <topic>/dvl/velocity</topic>
+        
+        <!-- DVL configuration -->
+        <gz:dvl>
+          <type>phased_array</type>
+          <resolution>0.01</resolution>
+          <minimum_range>0.3</minimum_range>
+          <maximum_range>200.0</maximum_range>
+          
+          <!-- Reference frame transformation -->
+          <reference_frame>
+            <pose>0 0 0 3.14 0 -1.57</pose>
+            <!-- <pose>0 0 0 3.141592653589793 0 0</pose> -->
+          </reference_frame>
+          
+          <!-- Beam arrangement -->
+          <arrangement degrees="true">
+            <beam id="1">
+              <aperture>3</aperture>
+              <rotation>-135</rotation>
+              <tilt>25</tilt>
+            </beam>
+            <beam id="2">
+              <aperture>3</aperture>
+              <rotation>135</rotation>
+              <tilt>25</tilt>
+            </beam>
+            <beam id="3">
+              <aperture>3</aperture>
+              <rotation>45</rotation>
+              <tilt>25</tilt>
+            </beam>
+            <beam id="4">
+              <aperture>3</aperture>
+              <rotation>-45</rotation>
+              <tilt>25</tilt>
+            </beam>
+          </arrangement>
+          
+          <!-- Tracking modes -->
+          <tracking>
+            <water_mass_mode>
+              <when>best</when>
+              <water_velocity>
+                <x>0.</x>
+                <y>0.</y>
+                <z>0.</z>
+              </water_velocity>
+              <boundaries>
+                <near>10.</near>
+                <far>100.</far>
+              </boundaries>
+              <bins>10</bins>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.015</stddev>
+              </noise>
+              <visualize>true</visualize>
+            </water_mass_mode>
+            <bottom_mode>
+              <when>best</when>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.005</stddev>
+              </noise>
+              <visualize>true</visualize>
+            </bottom_mode>
+          </tracking>
+        </gz:dvl>
       </sensor>
 
     </link>
@@ -275,7 +406,7 @@
       <fluid_density>1000</fluid_density>
       <propeller_diameter>0.1</propeller_diameter>
       <velocity_control>true</velocity_control>
-      <use_angvel_cmd>False</use_angvel_cmd>
+      <use_angvel_cmd>True</use_angvel_cmd>
     </plugin>
 
     <plugin
@@ -287,7 +418,7 @@
       <fluid_density>1000</fluid_density>
       <propeller_diameter>0.1</propeller_diameter>
       <velocity_control>true</velocity_control>
-      <use_angvel_cmd>False</use_angvel_cmd>
+      <use_angvel_cmd>True</use_angvel_cmd>
     </plugin>
 
     <plugin
@@ -300,7 +431,7 @@
       <fluid_density>1000</fluid_density>
       <propeller_diameter>0.1</propeller_diameter>
       <velocity_control>true</velocity_control>
-      <use_angvel_cmd>False</use_angvel_cmd>
+      <use_angvel_cmd>True</use_angvel_cmd>
     </plugin>
 
     <plugin
@@ -313,7 +444,7 @@
       <fluid_density>1000</fluid_density>
       <propeller_diameter>0.1</propeller_diameter>
       <velocity_control>true</velocity_control>
-      <use_angvel_cmd>False</use_angvel_cmd>
+      <use_angvel_cmd>True</use_angvel_cmd>
     </plugin>
 
     <plugin
@@ -325,7 +456,7 @@
       <fluid_density>1000</fluid_density>
       <propeller_diameter>0.1</propeller_diameter>
       <velocity_control>true</velocity_control>
-      <use_angvel_cmd>False</use_angvel_cmd>
+      <use_angvel_cmd>True</use_angvel_cmd>
     </plugin>
 
     <plugin
@@ -338,7 +469,7 @@
       <fluid_density>1000</fluid_density>
       <propeller_diameter>0.1</propeller_diameter>
       <velocity_control>true</velocity_control>
-      <use_angvel_cmd>False</use_angvel_cmd>
+      <use_angvel_cmd>True</use_angvel_cmd>
     </plugin>
 
     <plugin name="ArduPilotPlugin" filename="libArduPilotPlugin.so">
@@ -365,54 +496,54 @@
         <servo_min>1100</servo_min>
         <servo_max>1900</servo_max>
         <type>COMMAND</type>
-        <cmd_topic>/model/orca4/joint/thruster1_joint/cmd_thrust</cmd_topic>
+        <cmd_topic>/model/orca4/joint/thruster1_joint/cmd_vel</cmd_topic>
         <offset>-0.5</offset>
-        <multiplier>100</multiplier>
+        <multiplier>316.2277660168379</multiplier>
       </control>
       <control channel="1">
         <jointName>thruster2_joint</jointName>
         <servo_min>1100</servo_min>
         <servo_max>1900</servo_max>
         <type>COMMAND</type>
-        <cmd_topic>/model/orca4/joint/thruster2_joint/cmd_thrust</cmd_topic>
+        <cmd_topic>/model/orca4/joint/thruster2_joint/cmd_vel</cmd_topic>
         <offset>-0.5</offset>
-        <multiplier>100</multiplier>
+        <multiplier>316.2277660168379</multiplier>
       </control>
       <control channel="2">
         <jointName>thruster3_joint</jointName>
         <servo_min>1100</servo_min>
         <servo_max>1900</servo_max>
         <type>COMMAND</type>
-        <cmd_topic>/model/orca4/joint/thruster3_joint/cmd_thrust</cmd_topic>
+        <cmd_topic>/model/orca4/joint/thruster3_joint/cmd_vel</cmd_topic>
         <offset>-0.5</offset>
-        <multiplier>100</multiplier>
+        <multiplier>-316.2277660168379</multiplier>
       </control>
       <control channel="3">
         <jointName>thruster4_joint</jointName>
         <servo_min>1100</servo_min>
         <servo_max>1900</servo_max>
         <type>COMMAND</type>
-        <cmd_topic>/model/orca4/joint/thruster4_joint/cmd_thrust</cmd_topic>
+        <cmd_topic>/model/orca4/joint/thruster4_joint/cmd_vel</cmd_topic>
         <offset>-0.5</offset>
-        <multiplier>100</multiplier>
+        <multiplier>-316.2277660168379</multiplier>
       </control>
       <control channel="4">
         <jointName>thruster5_joint</jointName>
         <servo_min>1100</servo_min>
         <servo_max>1900</servo_max>
         <type>COMMAND</type>
-        <cmd_topic>/model/orca4/joint/thruster5_joint/cmd_thrust</cmd_topic>
+        <cmd_topic>/model/orca4/joint/thruster5_joint/cmd_vel</cmd_topic>
         <offset>-0.5</offset>
-        <multiplier>100</multiplier>
+        <multiplier>316.2277660168379</multiplier>
       </control>
       <control channel="5">
         <jointName>thruster6_joint</jointName>
         <servo_min>1100</servo_min>
         <servo_max>1900</servo_max>
         <type>COMMAND</type>
-        <cmd_topic>/model/orca4/joint/thruster6_joint/cmd_thrust</cmd_topic>
+        <cmd_topic>/model/orca4/joint/thruster6_joint/cmd_vel</cmd_topic>
         <offset>-0.5</offset>
-        <multiplier>100</multiplier>
+        <multiplier>-316.2277660168379</multiplier>
       </control>
 
     </plugin>

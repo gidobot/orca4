@@ -32,21 +32,25 @@ BTN8_FUNCTION    48
 BTN8_SFUNCTION   0
 BTN9_FUNCTION    23
 BTN9_SFUNCTION   0
-COMPASS_OFS_X   5
-COMPASS_OFS_Y   13
-COMPASS_OFS_Z   -18
-COMPASS_OFS2_X   5
-COMPASS_OFS2_Y   13
-COMPASS_OFS2_Z   -18
-COMPASS_OFS3_X   5
-COMPASS_OFS3_Y   13
-COMPASS_OFS3_Z   -18
-INS_ACCOFFS_X   0.001
-INS_ACCOFFS_Y   0.001
-INS_ACCOFFS_Z   0.001
-INS_ACCSCAL_X   1.001
-INS_ACCSCAL_Y   1.001
-INS_ACCSCAL_Z   1.001
+
+# Well-calibrated compass offsets (minimal residual offsets)
+COMPASS_OFS_X   0.5
+COMPASS_OFS_Y   1.0
+COMPASS_OFS_Z   -2.0
+COMPASS_OFS2_X   0.5
+COMPASS_OFS2_Y   1.0
+COMPASS_OFS2_Z   -2.0
+COMPASS_OFS3_X   0.5
+COMPASS_OFS3_Y   1.0
+COMPASS_OFS3_Z   -2.0
+
+# Well-calibrated IMU offsets and scaling (minimal corrections)
+INS_ACCOFFS_X   0.0001
+INS_ACCOFFS_Y   0.0001
+INS_ACCOFFS_Z   0.0001
+INS_ACCSCAL_X   1.0001
+INS_ACCSCAL_Y   1.0001
+INS_ACCSCAL_Z   1.0001
 INS_ACC2OFFS_X   0.001
 INS_ACC2OFFS_Y   0.001
 INS_ACC2OFFS_Z   0.001
@@ -59,6 +63,7 @@ INS_ACC3OFFS_Z   0.000
 INS_ACC3SCAL_X   1.000
 INS_ACC3SCAL_Y   1.000
 INS_ACC3SCAL_Z   1.000
+
 MNT_ANGMAX_TIL 4500
 MNT_ANGMIN_TIL -4500
 MNT_DEFLT_MODE 3
@@ -66,15 +71,6 @@ MNT_JSTICK_SPD 100
 MNT_RC_IN_TILT 8
 MNT_STAB_TILT 0
 MNT_TYPE 1
-PSC_ACCZ_P   2
-PSC_ACCZ_I   4
-PSC_ACCZ_FF  0.75
-PSC_VELZ_P   8
-PSC_POSZ_P   3
-PSC_POSXY_P 2.5
-PSC_VELXY_D 0.8
-PSC_VELXY_I 0.5
-PSC_VELXY_P 5.0
 RNGFND1_MAX_CM   3000
 RNGFND1_PIN   0
 RNGFND1_SCALING   12.12
@@ -84,18 +80,91 @@ SERVO8_MAX 1900
 SERVO8_MIN 1100
 BARO_EXT_BUS 1
 
-# Enable external nav
-# From https://ardupilot.org/copter/docs/common-vio-tracking-camera.html
-GPS_TYPE 0            # Disable GPS
-VISO_TYPE 1           # External vision
-EK3_SRC1_POSXY 6      # External nav
-EK3_SRC1_VELXY 6      # External nav
-EK3_SRC1_POSZ 1       # Baro is the primary z source
-EK3_SRC1_VELZ 0       # None
-COMPASS_USE 0         # Disable compass 1
-COMPASS_USE2 0        # Disable compass 2
-COMPASS_USE3 0        # Disable compass 3
-EK3_SRC1_YAW 6        # External nav
+# =============================================================================
+# NAVIGATION SOURCE CONFIGURATION (GPS + IMU ONLY)
+# =============================================================================
+#GPS_TYPE 1            # Enable GPS
+GPS1_TYPE 0            # Enable GPS
+GPS2_TYPE 0            # Enable GPS
+VISO_TYPE 1           # Disable external vision/velocity (no DVL)
 
-# Reduce simulated barometer noise
-SIM_BARO_RND 0.02
+EK3_SRC1_POSXY 6
+EK3_SRC1_VELXY 6
+EK3_SRC1_POSZ 1 
+EK3_SRC1_VELZ 6 
+EK3_SRC1_YAW 1  
+
+# Enable compasses
+COMPASS_USE 1
+COMPASS_USE2 1
+COMPASS_USE3 1
+
+# =============================================================================
+# AHRS CONFIGURATION
+# =============================================================================
+AHRS_EKF_TYPE 3       # Use EKF3
+EK2_ENABLE 0          # Disable EKF2
+EK3_ENABLE 1          # Enable EKF3
+EK3_IMU_MASK 1        # Use first IMU
+
+# =============================================================================
+# EXTERNAL NAV CONFIGURATION
+# =============================================================================
+VISO_VEL_M_NSE 0.01   # DVL velocity measurement noise (m/s)
+VISO_POS_M_NSE 100.0  # Position noise (very high = ignore position)
+VISO_DELAY_MS 0       # Measurement delay
+
+# =============================================================================
+# EKF CONFIGURATION
+# =============================================================================
+EK3_VELNE_M_NSE 0.5   # Horizontal velocity process noise
+EK3_VELD_M_NSE 0.7    # Vertical velocity process noise
+
+# IMU Noise Parameters (matching calibrated IMU in model.sdf.in)
+EK3_ACC_P_NSE 0.05    # Accelerometer noise (0.005g stddev)
+EK3_GYR_P_NSE 0.005   # Gyroscope noise (0.3 deg/s stddev)
+EK3_ACC_I_GATE 5      # Accelerometer innovation gate
+EK3_GYR_I_GATE 5      # Gyroscope innovation gate
+
+# =============================================================================
+# SITL GPS SIMULATION
+# =============================================================================
+SIM_GPS_DISABLE 1     # Enable GPS simulation
+SIM_GPS_NUMSATS 12    # Number of satellites
+SIM_GPS_HDOP 1.0      # Horizontal dilution of precision
+SIM_GPS_VDOP 1.0      # Vertical dilution of precision
+SIM_GPS_HACC 1.0      # GPS horizontal accuracy (m)
+SIM_GPS_VACC 1.0      # GPS vertical accuracy (m)
+SIM_BARO_RND 0.02     # Barometer noise
+
+# =============================================================================
+# GUIDED MODE CONFIGURATION
+# =============================================================================
+GUID_SPEED    100     # Default guided speed (cm/s)
+GUID_TIMEOUT  3.0     # Timeout for velocity commands (s)
+
+# =============================================================================
+# POSITION CONTROLLER TUNING
+# =============================================================================
+PSC_POSXY_P   2.0     # Horizontal position P gain
+PSC_POSZ_P    2.5     # Vertical position P gain
+
+# =============================================================================
+# VELOCITY CONTROLLER TUNING
+# =============================================================================
+PSC_VELXY_P   4.0     # Horizontal velocity P
+PSC_VELXY_I   0.8     # Horizontal velocity I
+PSC_VELXY_D   0.6     # Horizontal velocity D
+PSC_VELZ_P    7.0     # Vertical velocity P
+
+# =============================================================================
+# ACCELERATION CONTROLLER TUNING
+# =============================================================================
+PSC_ACCZ_P    1.5     # Vertical accel P
+PSC_ACCZ_I    3.0     # Vertical accel I
+PSC_ACCZ_FF   0.5     # Vertical accel FF
+
+# =============================================================================
+# LOGGING
+# =============================================================================
+LOG_BITMASK 16777215  # Enable all logging

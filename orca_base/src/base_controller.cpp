@@ -28,6 +28,7 @@
 #include "mavros_msgs/msg/override_rc_in.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "orca_base/underwater_motion.hpp"
+#include "ros_gz_dvl_bridge/msg/dvl_velocity.hpp"
 #include "orca_shared/model.hpp"
 #include "orca_shared/pwm.hpp"
 #include "orca_shared/util.hpp"
@@ -118,6 +119,7 @@ class BaseController : public rclcpp::Node
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr ardu_pose_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr slam_pose_sub_;
+  rclcpp::Subscription<ros_gz_dvl_bridge::msg::DVLVelocity>::SharedPtr dvl_velocity_sub_;
 
   // Publications
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr ext_nav_pub_;
@@ -316,6 +318,14 @@ class BaseController : public rclcpp::Node
     }
   }
 
+  // DVL velocity callback
+  void dvl_velocity_cb(const ros_gz_dvl_bridge::msg::DVLVelocity::ConstSharedPtr & msg)
+  {
+    if (underwater_motion_) {
+      underwater_motion_->update_dvl_velocity(*msg);
+    }
+  }
+
   void validate_parameters()
   {
     slam_timeout_ = {std::chrono::milliseconds{cxt_.slam_timeout_ms_}};
@@ -359,13 +369,14 @@ public:
     (void) cmd_vel_sub_;
     (void) conn_srv_;
     (void) ardu_pose_sub_;
+    (void) dvl_velocity_sub_;
     (void) timer_;
 
     init_parameters();
 
     // Initial pose
     geometry_msgs::msg::Pose base_f_odom{};
-    base_f_odom.position.z = -0.2;
+    base_f_odom.position.z = 0.0;
 
     // Init dynamic transforms
     tf_map_slam_.setIdentity();
@@ -437,6 +448,13 @@ public:
       [this](geometry_msgs::msg::PoseStamped::ConstSharedPtr msg) -> void
       {
         slam_pose_cb(msg);
+      });
+
+    dvl_velocity_sub_ = create_subscription<ros_gz_dvl_bridge::msg::DVLVelocity>(
+      "/dvl/velocity", best_effort,
+      [this](ros_gz_dvl_bridge::msg::DVLVelocity::ConstSharedPtr msg) -> void
+      {
+        dvl_velocity_cb(msg);
       });
 
     RCLCPP_INFO(get_logger(), "base_controller ready");

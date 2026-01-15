@@ -67,7 +67,7 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'base',
-            default_value='True',
+            default_value='False',
             description='Launch base controller?',
         ),
 
@@ -79,13 +79,13 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'mavros',
-            default_value='True',
+            default_value='False',
             description='Launch mavros?',
         ),
 
         DeclareLaunchArgument(
             'nav',
-            default_value='True',
+            default_value='False',
             description='Launch navigation?',
         ),
 

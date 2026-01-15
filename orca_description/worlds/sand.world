@@ -26,6 +26,10 @@
         filename="libgz-sim-imu-system.so"
         name="gz::sim::systems::Imu">
     </plugin>
+    
+    <plugin filename="gz-sim-dvl-system"
+            name="gz::sim::systems::DopplerVelocityLogSystem">
+    </plugin>
 
     <!-- Buoyancy plugin manages buoyancy for all models -->
     <plugin
@@ -54,7 +58,7 @@
 
     <include>
       <uri>model://orca4</uri>
-      <pose>0 0 -0.2 0 0 0</pose>
+      <pose>0 0 0 0 0 0</pose>
     </include>
 
     <include>

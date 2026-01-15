@@ -21,6 +21,16 @@ ament_auto_add_executable(
 target_include_directories(base_controller PRIVATE include)
 
 ament_auto_add_executable(
+  base_controller_new
+  src/base_controller_new.cpp
+)
+
+target_include_directories(base_controller_new PRIVATE include)
+
+# Link TF2 libraries for base_controller_new
+ament_target_dependencies(base_controller_new tf2 tf2_ros tf2_geometry_msgs)
+
+ament_auto_add_executable(
   camera_info_publisher
   src/camera_info_publisher.cpp
 )

@@ -46,7 +46,138 @@
              to the ArduPilot body frame (x-forward, y-right, z-down) -->
         <pose>0 0 0 @d180 0 0</pose>
         <always_on>1</always_on>
-        <update_rate>1000.0</update_rate>
+        <update_rate>100.0</update_rate>
+        <imu>
+          <angular_velocity>
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.005</stddev> <!-- CALIBRATED IMU: ~0.3 deg/s -->
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.0005</bias_stddev> <!-- LOW BIAS DRIFT -->
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.005</stddev>
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.0005</bias_stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.005</stddev>
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.0005</bias_stddev>
+              </noise>
+            </z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.05</stddev> <!-- CALIBRATED IMU: ~0.005g -->
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.005</bias_stddev> <!-- LOW BIAS DRIFT -->
+              </noise>
+            </x>
+            <y>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.05</stddev>
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.005</bias_stddev>
+              </noise>
+            </y>
+            <z>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.05</stddev>
+                <bias_mean>0.0</bias_mean>
+                <bias_stddev>0.005</bias_stddev>
+              </noise>
+            </z>
+          </linear_acceleration>
+        </imu>
+      </sensor>
+
+
+      <sensor name="dvl_sensor" type="custom" gz:type="dvl">
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on>
+        <enable_metrics>true</enable_metrics>
+        <update_rate>8</update_rate>
+        <topic>/dvl/velocity</topic>
+        
+        <!-- DVL configuration -->
+        <gz:dvl>
+          <type>phased_array</type>
+          <resolution>0.01</resolution>
+          <minimum_range>0.3</minimum_range>
+          <maximum_range>200.0</maximum_range>
+          
+          <!-- Reference frame transformation -->
+          <reference_frame>
+            <pose>0 0 0 3.14 0 -1.57</pose>
+            <!-- <pose>0 0 0 @d180 0 0</pose> -->
+          </reference_frame>
+          
+          <!-- Beam arrangement -->
+          <arrangement degrees="true">
+            <beam id="1">
+              <aperture>3</aperture>
+              <rotation>-135</rotation>
+              <tilt>25</tilt>
+            </beam>
+            <beam id="2">
+              <aperture>3</aperture>
+              <rotation>135</rotation>
+              <tilt>25</tilt>
+            </beam>
+            <beam id="3">
+              <aperture>3</aperture>
+              <rotation>45</rotation>
+              <tilt>25</tilt>
+            </beam>
+            <beam id="4">
+              <aperture>3</aperture>
+              <rotation>-45</rotation>
+              <tilt>25</tilt>
+            </beam>
+          </arrangement>
+          
+          <!-- Tracking modes -->
+          <tracking>
+            <water_mass_mode>
+              <when>best</when>
+              <water_velocity>
+                <x>0.</x>
+                <y>0.</y>
+                <z>0.</z>
+              </water_velocity>
+              <boundaries>
+                <near>10.</near>
+                <far>100.</far>
+              </boundaries>
+              <bins>10</bins>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.015</stddev>
+              </noise>
+              <visualize>true</visualize>
+            </water_mass_mode>
+            <bottom_mode>
+              <when>best</when>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>0.005</stddev>
+              </noise>
+              <visualize>true</visualize>
+            </bottom_mode>
+          </tracking>
+        </gz:dvl>
       </sensor>
 
     </link>

@@ -49,8 +49,8 @@ def generate_launch_description():
     nav2_params_file = os.path.join(orca_bringup_dir, 'params', 'nav2_params.yaml')
     orca_params_file = LaunchConfiguration('orca_params_file')
 
-    orb_slam2_ros_dir = get_package_share_directory('orb_slam2_ros') #will fail if orb_slam2_ros isn't installed
-    orb_voc_file = os.path.join(orb_slam2_ros_dir, 'orb_slam2', 'Vocabulary', 'ORBvoc.txt')
+    # orb_slam2_ros_dir = get_package_share_directory('orb_slam2_ros') #will fail if orb_slam2_ros isn't installed
+    # orb_voc_file = os.path.join(orb_slam2_ros_dir, 'orb_slam2', 'Vocabulary', 'ORBvoc.txt')
     # orb_voc_file = os.path.join('install', 'orb_slam2_ros', 'share', 'orb_slam2_ros',
                                 # 'orb_slam2', 'Vocabulary', 'ORBvoc.txt')
 
@@ -130,7 +130,7 @@ def generate_launch_description():
         # Base controller and localizer; manage external nav input, publish tf2 transforms, etc.
         Node(
             package='orca_base',
-            executable='base_controller',
+            executable='base_controller_new',
             output='screen',
             name='base_controller',
             parameters=[orca_params_file],
@@ -188,21 +188,21 @@ def generate_launch_description():
         ),
 
         # orb_slam2: build a map of 3d points, localize against the map, and publish the camera pose
-        Node(
-            package='orb_slam2_ros',
-            executable='orb_slam2_ros_stereo',
-            output='screen',
-            name='orb_slam2_stereo',
-            parameters=[orca_params_file, {
-                'voc_file': orb_voc_file,
-            }],
-            remappings=[
-                ('/image_left/image_color_rect', '/stereo_left'),
-                ('/image_right/image_color_rect', '/stereo_right'),
-                ('/camera/camera_info', '/stereo_right/camera_info'),
-            ],
-            condition=IfCondition(LaunchConfiguration('slam')),
-        ),
+        # Node(
+        #     package='orb_slam2_ros',
+        #     executable='orb_slam2_ros_stereo',
+        #     output='screen',
+        #     name='orb_slam2_stereo',
+        #     parameters=[orca_params_file, {
+        #         'voc_file': orb_voc_file,
+        #     }],
+        #     remappings=[
+        #         ('/image_left/image_color_rect', '/stereo_left'),
+        #         ('/image_right/image_color_rect', '/stereo_right'),
+        #         ('/camera/camera_info', '/stereo_right/camera_info'),
+        #     ],
+        #     condition=IfCondition(LaunchConfiguration('slam')),
+        # ),
 
         # Include the rest of Nav2
         IncludeLaunchDescription(

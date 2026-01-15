@@ -33,6 +33,7 @@
 #include "geometry_msgs/msg/wrench_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "orca_base/base_context.hpp"
+#include "ros_gz_dvl_bridge/msg/dvl_velocity.hpp"
 #include "orca_msgs/msg/motion.hpp"
 #include "orca_shared/model.hpp"
 #include "rclcpp/logger.hpp"
@@ -45,6 +46,12 @@ class UnderwaterMotion
   rclcpp::Logger logger_;
   const BaseContext & cxt_;
   orca_msgs::msg::Motion motion_;
+
+  // DVL integration
+  ros_gz_dvl_bridge::msg::DVLVelocity dvl_velocity_;
+  rclcpp::Time dvl_velocity_time_;
+  bool dvl_available_{false};
+  bool dvl_updated_this_step_{false};
 
   double report_and_clamp(std::string func, std::string name, double v, double minmax);
 
@@ -59,6 +66,14 @@ class UnderwaterMotion
   [[nodiscard]] geometry_msgs::msg::Pose calc_pose(
     const geometry_msgs::msg::Pose & p0,
     const geometry_msgs::msg::Twist & v) const;
+
+  // DVL integration methods
+  [[nodiscard]] bool is_dvl_valid(const rclcpp::Time & current_time) const;
+  [[nodiscard]] bool is_dvl_fresh(const rclcpp::Time & current_time) const;
+  [[nodiscard]] geometry_msgs::msg::Twist get_dvl_velocity_in_robot_frame() const;
+  [[nodiscard]] geometry_msgs::msg::Twist fuse_velocities(
+    const geometry_msgs::msg::Twist & physics_vel,
+    const geometry_msgs::msg::Twist & dvl_vel) const;
 
 public:
   UnderwaterMotion(
@@ -75,6 +90,9 @@ public:
 
   // Update state from time t-(1/timer_rate) to time t
   void update(const rclcpp::Time & t, const geometry_msgs::msg::Twist & cmd_vel);
+
+  // DVL integration
+  void update_dvl_velocity(const ros_gz_dvl_bridge::msg::DVLVelocity & dvl_msg);
 };
 
 }  // namespace orca_base

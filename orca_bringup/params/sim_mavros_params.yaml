@@ -1,33 +1,19 @@
-# Connect to the FCU (ArduSub) and pass messages to/from the GCS (QGroundControl, mavproxy)
-#
-# See https://github.com/mavlink/mavros/tree/ros2/mavros for connection schemas and defaults
-#
-#     udp://[bind_host][:port]@[remote_host[:port]][/?ids=sysid,compid]
-#     udp default ports: 14555@14550
-#
-#     tcp://[server_host][:port][/?ids=sysid,compid]
-#     tcp default port: 5760
-
 mavros:
   ros__parameters:
     system_id: 255
-
-    # /mavros/local_position/pose requires 2 plugins:
-    #     imu handles the ATTITUDE_QUATERNION msg (MAV id 31)
-    #     local_position handles the LOCAL_POSITION_NED msg (MAV id 32)
-    # Also be sure to set the message interval to ~50ms for these 2 messages
-
-    # The vision_pose plugin is provided by mavros_extras.
-    # MAVROS will not complain if this package is missing.
+    target_system_id: 1
+    target_component_id: 1
 
     plugin_allowlist:
       - sys_status
       - command
       - imu
       - local_position
-      - rc_io
-      - setpoint_position
-      - vision_pose
+      - odometry
+      - setpoint_velocity
+      - setpoint_raw
+      - global_position
+      - param
 
 mavros_node:
   ros__parameters:
@@ -36,11 +22,30 @@ mavros_node:
 
 mavros/local_position:
   ros__parameters:
-    frame_id: "map"  # frame_id of /mavros/local_position/pose, etc.
+    frame_id: "map"
     tf:
-      send: false  # Do not publish tf
+      send: false
 
-mavros/vision_pose:
+mavros/global_position:
   ros__parameters:
+    frame_id: "map"
     tf:
-      listen: false  # Do not listen to tf
+      send: false
+
+mavros/setpoint_velocity:
+  ros__parameters:
+    frame_id: "base_link"
+    mav_frame: "BODY_NED"
+
+mavros/imu:
+  ros__parameters:
+    frame_id: "base_link"
+
+mavros/odometry:
+  ros__parameters:
+    in:
+      frame_id: "odom"
+      child_frame_id: "base_link"
+      frame_tf:
+        local_frame: "local_origin_ned"
+        body_frame: "base_link"

@@ -104,8 +104,8 @@ BaseController turns the desired velocity vector into `SET_POSITION_TARGET_GLOBA
 set the desired depth, and into `OVERRIDE_RC` messages to control the x and yaw RC inputs.
 Both messages are sent at 20Hz.
 
-ArduSub is in ALT_HOLD mode. ArduSub uses a PID controller to hold the target depth.
-ArduSub blends the PID outputs with the RC overrides to drive the thrusters.
+ArduSub is in GUIDED mode. ArduSub uses position and velocity controllers to maintain stability and respond to velocity commands.
+ArduSub blends the controller outputs with the RC overrides to drive the thrusters.
 
 ## Life of a Pose
 

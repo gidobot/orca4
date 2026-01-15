@@ -171,14 +171,50 @@ void UnderwaterMotion::update(const rclcpp::Time & t, const geometry_msgs::msg::
   motion_.header.stamp = t;
   motion_.dt = 1.0 / cxt_.timer_rate_;
   motion_.cmd_vel = cmd_vel;
+  
+  // Reset DVL fresh flag at the beginning of each update cycle
+  dvl_updated_this_step_ = false;
 
   // Pose and vel don't honor coast TODO(clyde)
   motion_.pose = calc_pose(motion_.pose, motion_.vel);
-  motion_.vel = calc_vel(motion_.vel, motion_.accel_model);
+  
+  // Calculate velocity using physics model
+  auto physics_vel = calc_vel(motion_.vel, motion_.accel_model);
+  
+  // Temporal DVL fusion: use DVL when fresh, physics model between updates
+  if (is_dvl_valid(t) && is_dvl_fresh(t)) {
+    // Fresh DVL data available - use it directly
+    auto dvl_vel = get_dvl_velocity_in_robot_frame();
+    motion_.vel = fuse_velocities(physics_vel, dvl_vel);
+    RCLCPP_INFO(logger_, "dvl=[%.3f, %.3f, %.3f]", 
+                dvl_vel.linear.x, dvl_vel.linear.y, dvl_vel.linear.z);
+    RCLCPP_INFO(logger_, "phy=[%.3f, %.3f, %.3f]", 
+                physics_vel.linear.x, physics_vel.linear.y, physics_vel.linear.z);
+    RCLCPP_INFO(logger_, "using_dvl");
+    dvl_updated_this_step_ = true;
+    RCLCPP_DEBUG(logger_, "DVL FRESH: physics=[%.3f, %.3f, %.3f], dvl=[%.3f, %.3f, %.3f], using_dvl", 
+                physics_vel.linear.x, physics_vel.linear.y, physics_vel.linear.z,
+                dvl_vel.linear.x, dvl_vel.linear.y, dvl_vel.linear.z);
+  } else if (is_dvl_valid(t) && !is_dvl_fresh(t)) {
+    // DVL data is valid but not fresh - use physics model for interpolation
+    motion_.vel = physics_vel;
+    dvl_updated_this_step_ = false;
+    RCLCPP_DEBUG(logger_, "DVL STALE: physics=[%.3f, %.3f, %.3f], dvl=[%.3f, %.3f, %.3f], using_physics", 
+                physics_vel.linear.x, physics_vel.linear.y, physics_vel.linear.z,
+                dvl_velocity_.velocity.x, dvl_velocity_.velocity.y, dvl_velocity_.velocity.z);
+  } else {
+    // No valid DVL data - use physics model
+    motion_.vel = physics_vel;
+    dvl_updated_this_step_ = false;
+    if (dvl_available_) {
+      RCLCPP_DEBUG(logger_, "DVL INVALID: using physics velocity: [%.3f, %.3f, %.3f]", 
+                  motion_.vel.linear.x, motion_.vel.linear.y, motion_.vel.linear.z);
+    }
+  }
 
-  // Accelerate to cmd_vel
+  // Calculate acceleration from physics velocity to avoid feedback loops
   motion_.accel_model = calc_accel(motion_.vel, cmd_vel);
-
+  
   // Counteract drag
   motion_.accel_drag = -cxt_.drag_accel(motion_.vel);
 
@@ -193,6 +229,122 @@ void UnderwaterMotion::update(const rclcpp::Time & t, const geometry_msgs::msg::
   motion_.accel_total = accel_total;
   motion_.force = cxt_.accel_to_wrench(accel_total);
   motion_.effort = cxt_.wrench_to_effort(motion_.force);
+}
+
+// DVL integration methods
+
+bool UnderwaterMotion::is_dvl_valid(const rclcpp::Time & current_time) const
+{
+  if (!dvl_available_) {
+    return false;
+  }
+
+  // Check if DVL data is recent enough
+  auto dvl_age = current_time - dvl_velocity_time_;
+  if (dvl_age.seconds() > cxt_.dvl_timeout_ms_ / 1000.0) {
+    RCLCPP_DEBUG(logger_, "DVL data too old: %.3f seconds", dvl_age.seconds());
+    return false;
+  }
+
+  // Check DVL validity flags
+  if (!dvl_velocity_.velocity_valid) {
+    RCLCPP_DEBUG(logger_, "DVL velocity not valid");
+    return false;
+  }
+
+  // Check figure of merit
+  if (dvl_velocity_.figure_of_merit < cxt_.dvl_min_figure_of_merit_) {
+    RCLCPP_DEBUG(logger_, "DVL figure of merit too low: %.3f < %.3f", 
+                 dvl_velocity_.figure_of_merit, cxt_.dvl_min_figure_of_merit_);
+    return false;
+  }
+
+  // Check for reasonable velocity values (sanity check)
+  double vel_magnitude = sqrt(dvl_velocity_.velocity.x * dvl_velocity_.velocity.x +
+                             dvl_velocity_.velocity.y * dvl_velocity_.velocity.y +
+                             dvl_velocity_.velocity.z * dvl_velocity_.velocity.z);
+  if (vel_magnitude > 5.0) {  // 5 m/s is very fast for an AUV
+    RCLCPP_WARN(logger_, "DVL velocity magnitude too high: %.3f m/s", vel_magnitude);
+    return false;
+  }
+
+  // Check altitude (DVL should have reasonable altitude)
+  if (dvl_velocity_.altitude < 0.1 || dvl_velocity_.altitude > 100.0) {
+    RCLCPP_DEBUG(logger_, "DVL altitude out of range: %.3f m", dvl_velocity_.altitude);
+    return false;
+  }
+
+  return true;
+}
+
+bool UnderwaterMotion::is_dvl_fresh(const rclcpp::Time & current_time) const
+{
+  if (!dvl_available_) {
+    return false;
+  }
+
+  // Check if DVL data is very recent (within one motion model update cycle)
+  auto dvl_age = current_time - dvl_velocity_time_;
+  double fresh_threshold = 1.0 / cxt_.timer_rate_;  // One update cycle
+  
+  bool is_fresh = dvl_age.seconds() <= fresh_threshold;
+  
+  RCLCPP_DEBUG(logger_, "DVL freshness check: age=%.3f, threshold=%.3f, fresh=%s",
+               dvl_age.seconds(), fresh_threshold, is_fresh ? "true" : "false");
+  
+  return is_fresh;
+}
+
+geometry_msgs::msg::Twist UnderwaterMotion::get_dvl_velocity_in_robot_frame() const
+{
+  geometry_msgs::msg::Twist result;
+  
+  // DVL velocities are already in vehicle frame, so direct assignment
+  result.linear.x = dvl_velocity_.velocity.x;
+  result.linear.y = dvl_velocity_.velocity.y;
+  result.linear.z = dvl_velocity_.velocity.z;
+  result.angular.x = 0.0;
+  result.angular.y = 0.0;
+  result.angular.z = 0.0;  // DVL doesn't measure angular velocity
+
+  RCLCPP_DEBUG(logger_, "DVL velocity (vehicle frame): [%.3f, %.3f, %.3f]",
+               result.linear.x, result.linear.y, result.linear.z);
+
+  return result;
+}
+
+geometry_msgs::msg::Twist UnderwaterMotion::fuse_velocities(
+  const geometry_msgs::msg::Twist & physics_vel,
+  const geometry_msgs::msg::Twist & dvl_vel) const
+{
+  geometry_msgs::msg::Twist result;
+  double weight = cxt_.dvl_velocity_fusion_weight_;
+
+  // Fuse linear velocities
+  result.linear.x = weight * dvl_vel.linear.x + (1.0 - weight) * physics_vel.linear.x;
+  result.linear.y = weight * dvl_vel.linear.y + (1.0 - weight) * physics_vel.linear.y;
+  result.linear.z = weight * dvl_vel.linear.z + (1.0 - weight) * physics_vel.linear.z;
+
+  // Angular velocity only from physics model (DVL doesn't measure it)
+  result.angular.x = physics_vel.angular.x;
+  result.angular.y = physics_vel.angular.y;
+  result.angular.z = physics_vel.angular.z;
+
+  return result;
+}
+
+void UnderwaterMotion::update_dvl_velocity(const ros_gz_dvl_bridge::msg::DVLVelocity & dvl_msg)
+{
+  dvl_velocity_ = dvl_msg;
+  dvl_velocity_time_ = rclcpp::Time(dvl_msg.header.stamp);
+  dvl_available_ = true;
+  dvl_updated_this_step_ = true;  // Mark that we have fresh DVL data
+
+  RCLCPP_INFO(
+    logger_, "DVL velocity updated: [%.3f, %.3f, %.3f], valid=%s, fom=%.3f, alt=%.3f, mode=%d",
+    dvl_msg.velocity.x, dvl_msg.velocity.y, dvl_msg.velocity.z,
+    dvl_msg.velocity_valid ? "true" : "false",
+    dvl_msg.figure_of_merit, dvl_msg.altitude, dvl_msg.tracking_mode);
 }
 
 }  // namespace orca_base

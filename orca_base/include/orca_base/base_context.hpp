@@ -55,6 +55,11 @@ namespace orca_base
  \
   CXT_MACRO_MEMBER(coast, bool, false) \
   /* Coast to decelerate (vs powered decel), useful for ROV ops */ \
+ \
+  CXT_MACRO_MEMBER(dvl_timeout_ms, int, 1000) \
+  CXT_MACRO_MEMBER(dvl_min_figure_of_merit, double, 0.5) \
+  CXT_MACRO_MEMBER(dvl_velocity_fusion_weight, double, 1.0) \
+  /* Weight for DVL velocity fusion (0.0 = physics only, 1.0 = DVL only) */ \
 /* End of list */
 
 #undef CXT_MACRO_MEMBER

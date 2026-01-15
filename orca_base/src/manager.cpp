@@ -63,6 +63,7 @@ class Manager : public rclcpp::Node
   // During boot mavros will briefly report the mode as "CMODE(19)", this is the same as "MANUAL"
   const std::string ARDUSUB_MODE_ALT_HOLD = "ALT_HOLD";
   const std::string ARDUSUB_MODE_POS_HOLD = "POSHOLD";
+  const std::string ARDUSUB_MODE_GUIDED = "GUIDED";
   const std::string ARDUSUB_MODE_MANUAL = "MANUAL";
 
   // The transition from current_mode to target_mode might take some time, e.g., we might have
@@ -182,8 +183,8 @@ class Manager : public rclcpp::Node
         set_arm(true);
       }
 
-      if (ardusub_mode_ != ARDUSUB_MODE_ALT_HOLD) {
-        set_ardusub_mode(0, ARDUSUB_MODE_ALT_HOLD);
+      if (ardusub_mode_ != ARDUSUB_MODE_GUIDED) {
+        set_ardusub_mode(0, ARDUSUB_MODE_GUIDED);
       }
 
       if (!base_driving_) {
@@ -200,7 +201,7 @@ class Manager : public rclcpp::Node
 
       // We are in AUV mode when all of these things are true
       // The mode_timer will keep trying until this happens
-      if (ardusub_armed_ && ardusub_mode_ == ARDUSUB_MODE_ALT_HOLD && base_driving_ &&
+      if (ardusub_armed_ && ardusub_mode_ == ARDUSUB_MODE_GUIDED && base_driving_ &&
         nav2_active_)
       {
         current_mode_ = TargetMode::Goal::ORCA_MODE_AUV;
@@ -288,6 +289,7 @@ class Manager : public rclcpp::Node
 
   void go_to_target_mode()
   {
+
     if (current_mode_ != target_mode_) {
       switch (target_mode_) {
         case orca_msgs::action::TargetMode::Goal::ORCA_MODE_AUV:
