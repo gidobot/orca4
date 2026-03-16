@@ -246,16 +246,17 @@ bool UnderwaterMotion::is_dvl_valid(const rclcpp::Time & current_time) const
     return false;
   }
 
-  // Check DVL validity flags
-  if (!dvl_velocity_.velocity_valid) {
-    RCLCPP_DEBUG(logger_, "DVL velocity not valid");
+  // Check DVL validity (marine_acoustic_msgs: velocity valid when we have good beams)
+  if (dvl_velocity_.num_good_beams == 0) {
+    RCLCPP_DEBUG(logger_, "DVL velocity not valid (no good beams)");
     return false;
   }
 
-  // Check figure of merit
-  if (dvl_velocity_.figure_of_merit < cxt_.dvl_min_figure_of_merit_) {
-    RCLCPP_DEBUG(logger_, "DVL figure of merit too low: %.3f < %.3f", 
-                 dvl_velocity_.figure_of_merit, cxt_.dvl_min_figure_of_merit_);
+  // Check figure of merit (num_good_beams/4 for 4-beam DVL)
+  double figure_of_merit = dvl_velocity_.num_good_beams / 4.0;
+  if (figure_of_merit < cxt_.dvl_min_figure_of_merit_) {
+    RCLCPP_DEBUG(logger_, "DVL figure of merit too low: %.3f < %.3f",
+                 figure_of_merit, cxt_.dvl_min_figure_of_merit_);
     return false;
   }
 
@@ -333,18 +334,18 @@ geometry_msgs::msg::Twist UnderwaterMotion::fuse_velocities(
   return result;
 }
 
-void UnderwaterMotion::update_dvl_velocity(const ros_gz_dvl_bridge::msg::DVLVelocity & dvl_msg)
+void UnderwaterMotion::update_dvl_velocity(const marine_acoustic_msgs::msg::Dvl & dvl_msg)
 {
   dvl_velocity_ = dvl_msg;
   dvl_velocity_time_ = rclcpp::Time(dvl_msg.header.stamp);
   dvl_available_ = true;
   dvl_updated_this_step_ = true;  // Mark that we have fresh DVL data
 
+  double figure_of_merit = dvl_msg.num_good_beams / 4.0;
   RCLCPP_INFO(
-    logger_, "DVL velocity updated: [%.3f, %.3f, %.3f], valid=%s, fom=%.3f, alt=%.3f, mode=%d",
+    logger_, "DVL velocity updated: [%.3f, %.3f, %.3f], beams=%d, fom=%.3f, alt=%.3f, mode=%d",
     dvl_msg.velocity.x, dvl_msg.velocity.y, dvl_msg.velocity.z,
-    dvl_msg.velocity_valid ? "true" : "false",
-    dvl_msg.figure_of_merit, dvl_msg.altitude, dvl_msg.tracking_mode);
+    dvl_msg.num_good_beams, figure_of_merit, dvl_msg.altitude, dvl_msg.velocity_mode);
 }
 
 }  // namespace orca_base

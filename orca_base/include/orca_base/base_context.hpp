@@ -60,6 +60,12 @@ namespace orca_base
   CXT_MACRO_MEMBER(dvl_min_figure_of_merit, double, 0.5) \
   CXT_MACRO_MEMBER(dvl_velocity_fusion_weight, double, 1.0) \
   /* Weight for DVL velocity fusion (0.0 = physics only, 1.0 = DVL only) */ \
+ \
+  CXT_MACRO_MEMBER(vision_pose_for_ekf, bool, true) \
+  /* When true, send VISION_POSITION_ESTIMATE for EKF (EK3_SRC1_POSXY=6). When false, EKF uses GPS/internal (EK3_SRC1_POSXY=3). */ \
+ \
+  CXT_MACRO_MEMBER(vision_pose_from_gazebo_odom, bool, false) \
+  /* When true, use /model/orca4/odometry (Gazebo ground truth) for vision_pose. When false, use EKF feedback. Use true for sim with no GPS. */ \
 /* End of list */
 
 #undef CXT_MACRO_MEMBER

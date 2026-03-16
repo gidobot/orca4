@@ -12,8 +12,11 @@ endif()
 find_package(ament_cmake_auto REQUIRED)
 ament_auto_find_build_dependencies()
 
+find_package(nav2_util REQUIRED)
+find_package(nav2_core REQUIRED)
+
 ament_auto_add_library(pure_pursuit_controller_3d SHARED src/pure_pursuit_controller_3d.cpp)
-target_include_directories(pure_pursuit_controller_3d PRIVATE include)
+target_include_directories(pure_pursuit_controller_3d PRIVATE include ${nav2_util_INCLUDE_DIRS})
 target_compile_definitions(pure_pursuit_controller_3d PUBLIC "PLUGINLIB__DISABLE_BOOST_FUNCTIONS")
 pluginlib_export_plugin_description_file(nav2_core pure_pursuit_controller_3d_plugin.xml)
 

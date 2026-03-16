@@ -15,6 +15,7 @@ install(
   PROGRAMS
   scripts/dump_rosout.py
   scripts/mission_runner.py
+  scripts/set_ekf_origin.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

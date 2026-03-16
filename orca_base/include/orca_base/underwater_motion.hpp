@@ -33,7 +33,7 @@
 #include "geometry_msgs/msg/wrench_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "orca_base/base_context.hpp"
-#include "ros_gz_dvl_bridge/msg/dvl_velocity.hpp"
+#include "marine_acoustic_msgs/msg/dvl.hpp"
 #include "orca_msgs/msg/motion.hpp"
 #include "orca_shared/model.hpp"
 #include "rclcpp/logger.hpp"
@@ -48,7 +48,7 @@ class UnderwaterMotion
   orca_msgs::msg::Motion motion_;
 
   // DVL integration
-  ros_gz_dvl_bridge::msg::DVLVelocity dvl_velocity_;
+  marine_acoustic_msgs::msg::Dvl dvl_velocity_;
   rclcpp::Time dvl_velocity_time_;
   bool dvl_available_{false};
   bool dvl_updated_this_step_{false};
@@ -92,7 +92,7 @@ public:
   void update(const rclcpp::Time & t, const geometry_msgs::msg::Twist & cmd_vel);
 
   // DVL integration
-  void update_dvl_velocity(const ros_gz_dvl_bridge::msg::DVLVelocity & dvl_msg);
+  void update_dvl_velocity(const marine_acoustic_msgs::msg::Dvl & dvl_msg);
 };
 
 }  // namespace orca_base

@@ -48,6 +48,11 @@ d90 = d180 / 2
 d45 = d90 / 2
 d135 = d90 + d45
 
+# ~11 deg heading bias correction for gazeboXYZToNED (compass derived from pose in SITL)
+# Adjust sign if correction goes wrong direction
+heading_bias_correction_deg = 10
+gazebo_ned_yaw = d90 + math.radians(heading_bias_correction_deg)
+
 mass = 10
 visual_x = 0.457
 visual_y = 0.338

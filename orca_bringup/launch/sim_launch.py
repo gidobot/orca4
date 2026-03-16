@@ -32,7 +32,14 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    GroupAction,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+    TimerAction,
+)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -52,7 +59,10 @@ def generate_launch_description():
 
     sim_left_ini = os.path.join(orca_bringup_dir, 'cfg', 'sim_left.ini')
     sim_right_ini = os.path.join(orca_bringup_dir, 'cfg', 'sim_right.ini')
+    sim_nav2_params_file = os.path.join(orca_bringup_dir, 'params', 'sim_nav2_params.yaml')
     return LaunchDescription([
+        # Force all nodes to use sim time (required for Nav2, TF, etc. when /clock is published)
+        SetEnvironmentVariable('ROS_USE_SIM_TIME', '1'),
         DeclareLaunchArgument(
             'ardusub',
             default_value='True',
@@ -101,6 +111,12 @@ def generate_launch_description():
             description='Launch SLAM?',
         ),
 
+        DeclareLaunchArgument(
+            'ardusub_delay',
+            default_value='0.0',
+            description='Seconds to delay ArduSub after launch (allows Gazebo to load first, reducing controller resets)',
+        ),
+
         # Bag useful topics
         ExecuteProcess(
             cmd=[
@@ -108,6 +124,7 @@ def generate_launch_description():
                 '--qos-profile-overrides-path', rosbag2_record_qos_file,
                 '--include-hidden-topics',
                 '/cmd_vel',
+                '/dvl/velocity',
                 '/mavros/local_position/pose',
                 '/mavros/rc/override',
                 '/mavros/setpoint_position/global',
@@ -127,22 +144,46 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('bag')),
         ),
 
-        # Launch rviz
-        ExecuteProcess(
-            cmd=['rviz2', '-d', rviz_file],
-            output='screen',
+        # Launch rviz (delayed so mavros is publishing first; avoids QoS discovery warning)
+        # use_sim_time required for odometry/pose from uwlocalization and sim topics
+        GroupAction(
             condition=IfCondition(LaunchConfiguration('rviz')),
+            actions=[
+                TimerAction(
+                    period='5.0',
+                    actions=[
+                        Node(
+                            package='rviz2',
+                            executable='rviz2',
+                            name='rviz2',
+                            arguments=['-d', rviz_file],
+                            parameters=[{'use_sim_time': True}],
+                            output='screen',
+                        ),
+                    ],
+                ),
+            ],
         ),
 
-        # Launch ArduSub w/ SIM_JSON
+        # Launch ArduSub w/ SIM_JSON (delayed so Gazebo's ArduPilotPlugin is ready)
+        # Reduces "ArduPilot controller has reset" from startup race condition
         # -w: wipe eeprom
-        # --home: start location (lat,lon,alt,yaw). Yaw is provided by Gazebo, so the start yaw value is ignored.
+        # --home: start location (lat,lon,alt,yaw). Yaw is provided by Gazebo.
         # ardusub must be on the $PATH, see src/orca4/setup.bash
-        ExecuteProcess(
-            cmd=['ardusub', '-S', '-w', '-M', 'JSON', '--defaults', ardusub_params_file,
-                 '-I0', '--home', '33.810313,-118.39386700000001,0.0,0'],
-            output='screen',
+        GroupAction(
             condition=IfCondition(LaunchConfiguration('ardusub')),
+            actions=[
+                TimerAction(
+                    period=LaunchConfiguration('ardusub_delay'),
+                    actions=[
+                        ExecuteProcess(
+                            cmd=['ardusub', '-S', '-w', '-M', 'JSON', '--defaults', ardusub_params_file,
+                                 '-I0', '--home', '33.810313,-118.39386700000001,0.0,0'],
+                            output='screen',
+                        ),
+                    ],
+                ),
+            ],
         ),
 
         # Launch Gazebo Sim
@@ -202,6 +243,17 @@ def generate_launch_description():
             ],
         ),
 
+        # Bridge Gazebo Sim clock to ROS2 /clock (required for use_sim_time)
+        Node(
+            package='ros_gz_bridge',
+            executable='parameter_bridge',
+            name='clock_bridge',
+            arguments=[
+                '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
+            ],
+            output='screen',
+        ),
+
         # Publish ground truth pose from Ignition Gazebo
         Node(
             package='ros_gz_bridge',
@@ -212,6 +264,13 @@ def generate_launch_description():
             output='screen'
         ),
 
+        # Bridge DVL velocity from Gazebo to ROS /dvl/velocity
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([
+                get_package_share_directory('ros_gz_dvl_bridge'), '/launch/dvl_bridge.launch.py'
+            ]),
+        ),
+
         # Bring up Orca and Nav2 nodes
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(orca_bringup_dir, 'launch', 'bringup.py')),
@@ -220,8 +279,10 @@ def generate_launch_description():
                 'mavros': LaunchConfiguration('mavros'),
                 'mavros_params_file': mavros_params_file,
                 'nav': LaunchConfiguration('nav'),
+                'nav2_params_file': sim_nav2_params_file,
                 'orca_params_file': orca_params_file,
                 'slam': LaunchConfiguration('slam'),
+                'use_sim_time': 'True',
             }.items(),
         ),
     ])

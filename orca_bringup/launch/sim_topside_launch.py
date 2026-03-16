@@ -32,7 +32,13 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    GroupAction,
+    IncludeLaunchDescription,
+    TimerAction,
+)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -101,6 +107,12 @@ def generate_launch_description():
             description='Launch SLAM?',
         ),
 
+        DeclareLaunchArgument(
+            'ardusub_delay',
+            default_value='8.0',
+            description='Seconds to delay ArduSub after launch (allows Gazebo to load first, reducing controller resets)',
+        ),
+
         # Bag useful topics
         ExecuteProcess(
             cmd=[
@@ -134,15 +146,25 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('rviz')),
         ),
 
-        # Launch ArduSub w/ SIM_JSON
+        # Launch ArduSub w/ SIM_JSON (delayed so Gazebo's ArduPilotPlugin is ready)
+        # Reduces "ArduPilot controller has reset" from startup race condition
         # -w: wipe eeprom
-        # --home: start location (lat,lon,alt,yaw). Yaw is provided by Gazebo, so the start yaw value is ignored.
+        # --home: start location (lat,lon,alt,yaw). Yaw is provided by Gazebo.
         # ardusub must be on the $PATH, see src/orca4/setup.bash
-        ExecuteProcess(
-            cmd=['ardusub', '-S', '-w', '-M', 'JSON', '--defaults', ardusub_params_file,
-                 '-I0', '--home', '33.810313,-118.39386700000001,0.0,0'],
-            output='screen',
+        GroupAction(
             condition=IfCondition(LaunchConfiguration('ardusub')),
+            actions=[
+                TimerAction(
+                    period=LaunchConfiguration('ardusub_delay'),
+                    actions=[
+                        ExecuteProcess(
+                            cmd=['ardusub', '-S', '-w', '-M', 'JSON', '--defaults', ardusub_params_file,
+                                 '-I0', '--home', '33.810313,-118.39386700000001,0.0,0'],
+                            output='screen',
+                        ),
+                    ],
+                ),
+            ],
         ),
 
         # Launch Gazebo Sim

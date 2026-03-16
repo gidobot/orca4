@@ -46,16 +46,10 @@ def generate_launch_description():
 
     mavros_params_file = LaunchConfiguration('mavros_params_file')
     nav2_bt_file = os.path.join(orca_bringup_dir, 'behavior_trees', 'orca4_bt.xml')
-    nav2_params_file = os.path.join(orca_bringup_dir, 'params', 'nav2_params.yaml')
+    nav2_params_file = LaunchConfiguration('nav2_params_file')
     orca_params_file = LaunchConfiguration('orca_params_file')
 
-    # orb_slam2_ros_dir = get_package_share_directory('orb_slam2_ros') #will fail if orb_slam2_ros isn't installed
-    # orb_voc_file = os.path.join(orb_slam2_ros_dir, 'orb_slam2', 'Vocabulary', 'ORBvoc.txt')
-    # orb_voc_file = os.path.join('install', 'orb_slam2_ros', 'share', 'orb_slam2_ros',
-                                # 'orb_slam2', 'Vocabulary', 'ORBvoc.txt')
-
-    # Rewrite to add the full path
-    # The rewriter will only rewrite existing keys
+    # Rewrite to add the full path to bt_xml (use_sim_time comes from params file)
     configured_nav2_params = RewrittenYaml(
         source_file=nav2_params_file,
         param_rewrites={
@@ -100,6 +94,18 @@ def generate_launch_description():
             'slam',
             default_value='True',
             description='Launch SLAM?',
+        ),
+
+        DeclareLaunchArgument(
+            'use_sim_time',
+            default_value='False',
+            description='Use simulation time (required for Nav2 in sim)',
+        ),
+
+        DeclareLaunchArgument(
+            'nav2_params_file',
+            default_value=os.path.join(orca_bringup_dir, 'params', 'nav2_params.yaml'),
+            description='Nav2 params file (use sim_nav2_params.yaml for simulation)',
         ),
 
         # Translate messages MAV <-> ROS
@@ -209,9 +215,9 @@ def generate_launch_description():
             PythonLaunchDescriptionSource(os.path.join(orca_bringup_dir, 'launch', 'navigation_launch.py')),
             launch_arguments={
                 'namespace': '',
-                'use_sim_time': 'False',
-                'autostart': 'False',
+                'use_sim_time': LaunchConfiguration('use_sim_time'),
                 'params_file': configured_nav2_params,
+                'autostart': 'False',
                 'use_composition': 'False',
                 'use_respawn': 'False',
                 'container_name': 'nav2_container',

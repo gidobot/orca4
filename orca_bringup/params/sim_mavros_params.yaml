@@ -1,5 +1,6 @@
 mavros:
   ros__parameters:
+    use_sim_time: true
     system_id: 255
     target_system_id: 1
     target_component_id: 1
@@ -10,6 +11,7 @@ mavros:
       - imu
       - local_position
       - odometry
+      - vision_pose
       - setpoint_velocity
       - setpoint_raw
       - global_position
@@ -17,6 +19,7 @@ mavros:
 
 mavros_node:
   ros__parameters:
+    use_sim_time: true
     fcu_url: "tcp://localhost"
     gcs_url: "udp://@localhost:14550"
 
@@ -49,3 +52,10 @@ mavros/odometry:
       frame_tf:
         local_frame: "local_origin_ned"
         body_frame: "base_link"
+
+mavros/vision_pose:
+  ros__parameters:
+    tf:
+      listen: false
+      frame_id: "map"
+      child_frame_id: "base_link"

@@ -1,21 +1,21 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 
 # Modify this for your environment
 
 if [[ -z "${ARDUPILOT_GAZEBO}" ]]; then
-  export ARDUPILOT_GAZEBO="$HOME/workspace/ardupilot_gazebo"
+  export ARDUPILOT_GAZEBO="$HOME/workspace/thirdparty/ardupilot_gazebo"
 fi
 
 if [[ -z "${ARDUPILOT_HOME}" ]]; then
-  export ARDUPILOT_HOME="$HOME/workspace/ardupilot"
+  export ARDUPILOT_HOME="$HOME/workspace/thirdparty/ardupilot"
 fi
 
 if [[ -z "${COLCON_WS}" ]]; then
-  export COLCON_WS="$HOME/workspace/acfr-colcon"
+  export COLCON_WS="$HOME/workspace/colcon-ws-acfr"
 fi
 
 if [[ -z "${COLCON_WS_LOCAL}" ]]; then
-  export COLCON_WS_LOCAL="$HOME/workspace/acfr-colcon"
+  export COLCON_WS_LOCAL="$HOME/workspace/colcon-ws-acfr"
 fi
 
 
@@ -23,8 +23,8 @@ fi
 export PATH=${ARDUPILOT_HOME}/build/sitl/bin:$PATH
 
 # Add results of colcon build
-source ${COLCON_WS}/install/setup.bash
-source ${COLCON_WS_LOCAL}/install/setup.bash
+source ${COLCON_WS}/install/setup.zsh
+source ${COLCON_WS_LOCAL}/install/setup.zsh
 
 # Add ardupilot_gazebo plugin
 export GZ_SIM_SYSTEM_PLUGIN_PATH=${ARDUPILOT_GAZEBO}/build:$GZ_SIM_SYSTEM_PLUGIN_PATH

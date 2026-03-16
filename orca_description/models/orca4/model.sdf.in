@@ -477,7 +477,8 @@
       <fdm_addr>127.0.0.1</fdm_addr>
       <fdm_port_in>9002</fdm_port_in>
       <connectionTimeoutMaxCount>5</connectionTimeoutMaxCount>
-      <lock_step>1</lock_step>
+      <!-- lock_step=0: ArduSub 4.8 sends no_lockstep; plugin must match to avoid frame sync resets -->
+      <lock_step>0</lock_step>
 
       <!-- Transform from the Gazebo body frame (x-forward, y-left, z-up)
            to the ArduPilot body frame (x-forward, y-right, z-down) -->
@@ -485,7 +486,7 @@
 
       <!-- Transform from the Gazebo world frame (ENU)
            to the ArduPilot world frame (NED) -->
-      <gazeboXYZToNED>0 0 0 @d180 0 @d90</gazeboXYZToNED>
+      <gazeboXYZToNED>0 0 0 @d180 0 @gazebo_ned_yaw</gazeboXYZToNED>
 
       <!-- Sensors -->
       <imuName>imu_sensor</imuName>

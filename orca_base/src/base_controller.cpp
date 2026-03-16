@@ -28,7 +28,7 @@
 #include "mavros_msgs/msg/override_rc_in.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "orca_base/underwater_motion.hpp"
-#include "ros_gz_dvl_bridge/msg/dvl_velocity.hpp"
+#include "marine_acoustic_msgs/msg/dvl.hpp"
 #include "orca_shared/model.hpp"
 #include "orca_shared/pwm.hpp"
 #include "orca_shared/util.hpp"
@@ -119,7 +119,7 @@ class BaseController : public rclcpp::Node
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr ardu_pose_sub_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr slam_pose_sub_;
-  rclcpp::Subscription<ros_gz_dvl_bridge::msg::DVLVelocity>::SharedPtr dvl_velocity_sub_;
+  rclcpp::Subscription<marine_acoustic_msgs::msg::Dvl>::SharedPtr dvl_velocity_sub_;
 
   // Publications
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr ext_nav_pub_;
@@ -319,7 +319,7 @@ class BaseController : public rclcpp::Node
   }
 
   // DVL velocity callback
-  void dvl_velocity_cb(const ros_gz_dvl_bridge::msg::DVLVelocity::ConstSharedPtr & msg)
+  void dvl_velocity_cb(const marine_acoustic_msgs::msg::Dvl::ConstSharedPtr & msg)
   {
     if (underwater_motion_) {
       underwater_motion_->update_dvl_velocity(*msg);
@@ -450,9 +450,9 @@ public:
         slam_pose_cb(msg);
       });
 
-    dvl_velocity_sub_ = create_subscription<ros_gz_dvl_bridge::msg::DVLVelocity>(
+    dvl_velocity_sub_ = create_subscription<marine_acoustic_msgs::msg::Dvl>(
       "/dvl/velocity", best_effort,
-      [this](ros_gz_dvl_bridge::msg::DVLVelocity::ConstSharedPtr msg) -> void
+      [this](marine_acoustic_msgs::msg::Dvl::ConstSharedPtr msg) -> void
       {
         dvl_velocity_cb(msg);
       });

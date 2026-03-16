@@ -7,8 +7,10 @@ manager:
 
 base_controller:
   ros__parameters:
-    use_sim_time: False
+    use_sim_time: true
     timer_rate: 20  # Motion model period
+    vision_pose_for_ekf: True   # EKF uses external vision pose (EK3_SRC1_POSXY=6)
+    vision_pose_from_gazebo_odom: True  # Use Gazebo ground truth for development
 
     # List frames for clarity:
     map_frame_id: "map"  # ArduSub EKF frame; mavros expects this to be "map"

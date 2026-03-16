@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
@@ -28,7 +29,7 @@
 #include "geometry_msgs/msg/pose_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "mavros_msgs/msg/position_target.hpp"
-#include "ros_gz_dvl_bridge/msg/dvl_velocity.hpp"
+#include "marine_acoustic_msgs/msg/dvl.hpp"
 #include "orca_base/base_context.hpp"
 #include "orca_shared/util.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -57,12 +58,18 @@ class BaseControllerNew : public rclcpp::Node
 
   // Most recent messages
   geometry_msgs::msg::PoseStamped ardu_pose_;   // Pose from ArduSub EKF
-  geometry_msgs::msg::Twist cmd_vel_;           // Twist from Nav2
-  ros_gz_dvl_bridge::msg::DVLVelocity dvl_velocity_;  // DVL velocity measurements
+  geometry_msgs::msg::Twist cmd_vel_;            // Twist from Nav2
+  marine_acoustic_msgs::msg::Dvl dvl_velocity_;  // DVL velocity measurements
+  nav_msgs::msg::Odometry gazebo_odom_;         // Ground truth from Gazebo (when vision_pose_from_gazebo_odom)
+  bool have_gazebo_odom_{false};
 
   // Dynamic transforms
   tf2::Transform tf_map_odom_;
   tf2::Transform tf_odom_base_;
+
+  // Dead-reckoned position (integrated DVL/cmd_vel from 0,0,0, no absolute reference)
+  tf2::Vector3 dr_position_{0.0, 0.0, 0.0};
+  rclcpp::Time last_dr_time_;
 
   // EKF warm-up state
   enum class EKFState
@@ -82,53 +89,77 @@ class BaseControllerNew : public rclcpp::Node
   // Subscriptions
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr ardu_pose_sub_;
-  rclcpp::Subscription<ros_gz_dvl_bridge::msg::DVLVelocity>::SharedPtr dvl_velocity_sub_;
+  rclcpp::Subscription<marine_acoustic_msgs::msg::Dvl>::SharedPtr dvl_velocity_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr gazebo_odom_sub_;
 
   // Publications
   rclcpp::Publisher<mavros_msgs::msg::PositionTarget>::SharedPtr velocity_pub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr mavros_odom_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr vision_pose_pub_;
 
   // TF2
   std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
 
-  void publish_warmup_odometry(const tf2::Transform & pose)
+  geometry_msgs::msg::Pose compute_dead_reckoned_pose()
   {
-    nav_msgs::msg::Odometry odom_msg;
-    odom_msg.header.stamp = now();
-    odom_msg.header.frame_id = cxt_.odom_frame_id_;
-    odom_msg.child_frame_id = cxt_.base_frame_id_;
-    
-    // Set pose (position and orientation)
-    odom_msg.pose.pose = orca::transform_to_pose_msg(pose);
-    
-    // Set velocity to zero (vehicle is stationary during warm-up)
-    odom_msg.twist.twist.linear.x = 0.0;
-    odom_msg.twist.twist.linear.y = 0.0;
-    odom_msg.twist.twist.linear.z = 0.0;
-    odom_msg.twist.twist.angular.x = 0.0;
-    odom_msg.twist.twist.angular.y = 0.0;
-    odom_msg.twist.twist.angular.z = 0.0;
-    
-    // Set covariances for warm-up
-    // Position covariance: moderate uncertainty (1m standard deviation)
-    odom_msg.pose.covariance[0] = 1.0;   // x position variance
-    odom_msg.pose.covariance[7] = 1.0;   // y position variance  
-    odom_msg.pose.covariance[14] = 0.1;  // z position variance (more accurate)
-    odom_msg.pose.covariance[21] = 0.1;  // roll variance
-    odom_msg.pose.covariance[28] = 0.1;  // pitch variance
-    odom_msg.pose.covariance[35] = 0.5;  // yaw variance
-    
-    // Velocity covariance: low uncertainty (vehicle stationary)
-    odom_msg.twist.covariance[0] = 0.01;  // x velocity variance
-    odom_msg.twist.covariance[7] = 0.01;  // y velocity variance
-    odom_msg.twist.covariance[14] = 0.01; // z velocity variance
-    odom_msg.twist.covariance[21] = 0.01; // roll rate variance
-    odom_msg.twist.covariance[28] = 0.01; // pitch rate variance
-    odom_msg.twist.covariance[35] = 0.01; // yaw rate variance
-    
-    mavros_odom_pub_->publish(odom_msg);
+    auto now_time = now();
+    double dt = 0.0;
+    if (last_dr_time_.nanoseconds() > 0) {
+      dt = (now_time - last_dr_time_).seconds();
+    }
+    last_dr_time_ = now_time;
+
+    // Get velocity: DVL when valid, else cmd_vel
+    geometry_msgs::msg::Twist vel_body;
+    auto dvl_age = now_time - rclcpp::Time(dvl_velocity_.header.stamp);
+    double figure_of_merit = dvl_velocity_.num_good_beams / 4.0;
+    bool dvl_ok = dvl_velocity_.num_good_beams > 0 && dvl_age.seconds() < 1.0 &&
+                  dvl_velocity_.altitude > 0.5 && figure_of_merit >= 0.6;
+    if (dvl_ok) {
+      vel_body.linear.x = dvl_velocity_.velocity.x;
+      vel_body.linear.y = dvl_velocity_.velocity.y;
+      vel_body.linear.z = dvl_velocity_.velocity.z;
+    } else {
+      vel_body.linear = cmd_vel_.linear;
+      vel_body.angular = cmd_vel_.angular;
+    }
+
+    // Get yaw from EKF (compass) when available
+    double yaw = 0.0;
+    if (ardu_pose_.header.stamp.sec != 0 || ardu_pose_.header.stamp.nanosec != 0) {
+      yaw = orca::get_yaw(ardu_pose_.pose.orientation);
+    }
+
+    // Transform velocity to world frame and integrate
+    auto vel_world = orca::robot_to_world_frame(vel_body, yaw);
+    dr_position_.setX(dr_position_.x() + vel_world.linear.x * dt);
+    dr_position_.setY(dr_position_.y() + vel_world.linear.y * dt);
+    dr_position_.setZ(dr_position_.z() + vel_world.linear.z * dt);
+
+    geometry_msgs::msg::Pose pose;
+    pose.position.x = dr_position_.x();
+    pose.position.y = dr_position_.y();
+    pose.position.z = dr_position_.z();
+    if (ardu_pose_.header.stamp.sec != 0 || ardu_pose_.header.stamp.nanosec != 0) {
+      pose.orientation = ardu_pose_.pose.orientation;
+    } else {
+      pose.orientation.x = 0.0;
+      pose.orientation.y = 0.0;
+      pose.orientation.z = 0.0;
+      pose.orientation.w = 1.0;
+    }
+    return pose;
+  }
+
+  void publish_vision_pose(const geometry_msgs::msg::Pose & pose)
+  {
+    geometry_msgs::msg::PoseStamped msg;
+    msg.header.stamp = now();
+    msg.header.frame_id = cxt_.map_frame_id_;
+    msg.pose = pose;
+    vision_pose_pub_->publish(msg);
   }
 
   void publish_velocity(const geometry_msgs::msg::Twist & cmd_vel)
@@ -162,74 +193,57 @@ class BaseControllerNew : public rclcpp::Node
 
   void publish_dvl_odometry()
   {
-    // Only publish DVL data after EKF has initialized
-    if (ekf_state_ != EKFState::EKF_RUNNING) {
-      RCLCPP_DEBUG(get_logger(), "DVL odometry: Skipping - EKF not yet initialized");
-      return;
-    }
-    
+    // Send DVL velocity to EKF for fusion (EK3_SRC1_VELXY=6). With EK3_SRC1_POSXY=0,
+    // EKF ignores position and dead reckons from velocity. Send as soon as DVL is valid.
     // Check if DVL data is fresh and valid
     auto now_time = now();
     auto dvl_age = now_time - rclcpp::Time(dvl_velocity_.header.stamp);
     
-    // Only publish if DVL data is fresh (less than 1 second old) and valid
-    // Additional quality checks: valid velocity, reasonable altitude, good figure of merit
-    bool quality_ok = dvl_velocity_.velocity_valid && 
-                      dvl_velocity_.altitude > 0.5 &&  // At least 0.5m altitude
-                      dvl_velocity_.figure_of_merit >= 0.6;  // Good quality (high FOM is better)
-    
-    if (dvl_age.seconds() < 1.0 && quality_ok) {
-      nav_msgs::msg::Odometry odom_msg;
-      odom_msg.header.stamp = now();
-      odom_msg.header.frame_id = "odom";  // Local frame for EKF
-      odom_msg.child_frame_id = "base_link";  // Body frame
-      
-      // Set position to current EKF position (we only have velocity from DVL)
-      odom_msg.pose.pose = orca::transform_to_pose_msg(tf_odom_base_);
-      
-      // Twist should be expressed in the child frame (body frame)
-      // DVL velocities are already in vehicle frame (forward, right, down)
-      // No transformation needed - use DVL velocities directly in body frame
-      odom_msg.twist.twist.linear.x = dvl_velocity_.velocity.x;   // Forward
-      odom_msg.twist.twist.linear.y = dvl_velocity_.velocity.y;   // Right  
-      odom_msg.twist.twist.linear.z = dvl_velocity_.velocity.z;   // Down
-      odom_msg.twist.twist.angular.x = 0.0;  // DVL doesn't provide angular velocity
-      odom_msg.twist.twist.angular.y = 0.0;
-      odom_msg.twist.twist.angular.z = 0.0;
-      
-      // Set covariance matrices (DVL velocity uncertainty)
-      // Position covariance (high uncertainty since we're not using DVL for position)
-      odom_msg.pose.covariance[0] = 100.0;   // x
-      odom_msg.pose.covariance[7] = 100.0;    // y  
-      odom_msg.pose.covariance[14] = 100.0;  // z
-      
-      // Velocity covariance - use DVL-provided covariance if available, otherwise use default
-      if (dvl_velocity_.velocity_covariance.size() >= 9) {
-        // Use DVL-provided velocity covariance matrix
-        for (int i = 0; i < 9; i++) {
-          odom_msg.twist.covariance[i] = dvl_velocity_.velocity_covariance[i];
-        }
-      } else {
-        // Use constant covariance for DVL velocity (DVL is generally accurate)
-        double base_covariance = 0.01;  // Constant covariance for DVL velocity
-        odom_msg.twist.covariance[0] = base_covariance;   // x velocity
-        odom_msg.twist.covariance[7] = base_covariance;    // y velocity
-        odom_msg.twist.covariance[14] = base_covariance;  // z velocity
-      }
-      
-      mavros_odom_pub_->publish(odom_msg);
+    // Use DVL when quality is good; fall back to cmd_vel when DVL unavailable (e.g. sim).
+    bool dvl_fresh = dvl_age.seconds() < 1.0;
+    double figure_of_merit = dvl_velocity_.num_good_beams / 4.0;
+    bool dvl_quality_ok = dvl_velocity_.num_good_beams > 0 &&
+                         dvl_velocity_.altitude > 0.1 &&   // Relaxed for sim (was 0.5)
+                         figure_of_merit >= 0.3;  // Relaxed for sim (was 0.6)
+    bool use_dvl = dvl_fresh && dvl_quality_ok;
+
+    geometry_msgs::msg::Twist vel_body;
+    double vel_cov = 0.01;
+    if (use_dvl) {
+      vel_body.linear.x = dvl_velocity_.velocity.x;
+      vel_body.linear.y = dvl_velocity_.velocity.y;
+      vel_body.linear.z = dvl_velocity_.velocity.z;
+      vel_body.angular.x = vel_body.angular.y = vel_body.angular.z = 0.0;
+      vel_cov = std::max({dvl_velocity_.velocity_covar[0],
+                         dvl_velocity_.velocity_covar[4],
+                         dvl_velocity_.velocity_covar[8], 0.01});
     } else {
-      // Log why DVL data was rejected
-      if (dvl_age.seconds() >= 1.0) {
-        RCLCPP_DEBUG(get_logger(), "DVL data rejected: too old (%.3f seconds)", dvl_age.seconds());
-      } else if (!dvl_velocity_.velocity_valid) {
-        RCLCPP_DEBUG(get_logger(), "DVL data rejected: velocity not valid");
-      } else if (dvl_velocity_.altitude <= 0.5) {
-        RCLCPP_DEBUG(get_logger(), "DVL data rejected: altitude too low (%.3f m)", dvl_velocity_.altitude);
-      } else if (dvl_velocity_.figure_of_merit < 0.6) {
-        RCLCPP_DEBUG(get_logger(), "DVL data rejected: poor quality (FOM=%.6f, need >=0.6)", dvl_velocity_.figure_of_merit);
-      }
+      vel_body.linear = cmd_vel_.linear;
+      vel_body.angular = cmd_vel_.angular;
+      vel_cov = 0.5;  // Higher uncertainty for commanded vs measured velocity
     }
+
+    nav_msgs::msg::Odometry odom_msg;
+    odom_msg.header.stamp = now();
+    odom_msg.header.frame_id = "odom";
+    odom_msg.child_frame_id = "base_link";
+    odom_msg.pose.pose = orca::transform_to_pose_msg(tf_odom_base_);
+    odom_msg.pose.covariance[0] = odom_msg.pose.covariance[7] = odom_msg.pose.covariance[14] = 100.0;
+    odom_msg.twist.twist = vel_body;
+    odom_msg.twist.twist.angular.x = 0.0;
+    odom_msg.twist.twist.angular.y = 0.0;
+    if (use_dvl) {
+      // Map 3x3 velocity_covar to 6x6 twist covariance (linear block)
+      for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+          odom_msg.twist.covariance[i * 6 + j] = dvl_velocity_.velocity_covar[i * 3 + j];
+        }
+      }
+    } else {
+      odom_msg.twist.covariance[0] = odom_msg.twist.covariance[7] =
+        odom_msg.twist.covariance[14] = vel_cov;
+    }
+    mavros_odom_pub_->publish(odom_msg);
   }
 
   void publish_tf(std::string parent, std::string child, const tf2::Transform & tf)
@@ -256,22 +270,29 @@ class BaseControllerNew : public rclcpp::Node
 
   void timer_cb()
   {
-    // Check EKF state and warm-up if needed
+    // Check EKF state for warm-up completion (manager needs this for have_pose_)
     if (ekf_state_ == EKFState::WAITING_FOR_EKF) {
-      // Check if EKF has started publishing
       if (ardu_pose_.header.stamp.sec != 0 || ardu_pose_.header.stamp.nanosec != 0) {
         auto time_since_last_pose = now() - rclcpp::Time(ardu_pose_.header.stamp);
-        if (time_since_last_pose.seconds() < 1.0) {  // EKF is actively publishing
+        if (time_since_last_pose.seconds() < 1.0) {
           ekf_state_ = EKFState::EKF_RUNNING;
-          RCLCPP_INFO(get_logger(), "EKF is now running - stopping warm-up poses");
+          RCLCPP_INFO(get_logger(), "EKF is now running%s",
+            cxt_.vision_pose_for_ekf_ ? " - continuing vision_pose for position aiding" : " (GPS/internal position)");
         }
       }
-      
-      // Send default odometry to warm up EKF
-      if (ekf_state_ == EKFState::WAITING_FOR_EKF) {
-        RCLCPP_DEBUG(get_logger(), "Sending default odometry to warm up EKF");
-        publish_warmup_odometry(tf_odom_base_);
+    }
+
+    // Send vision_pose only when EKF expects it (EK3_SRC1_POSXY=6). When vision_pose_for_ekf=false,
+    // EKF uses GPS/internal (EK3_SRC1_POSXY=3) and we should not send vision_pose.
+    if (cxt_.vision_pose_for_ekf_) {
+      geometry_msgs::msg::Pose pose;
+      if (cxt_.vision_pose_from_gazebo_odom_ && have_gazebo_odom_) {
+        pose = gazebo_odom_.pose.pose;  // Ground truth from Gazebo (no GPS)
+      } else {
+        // Dead reckoning: integrate DVL/cmd_vel from (0,0,0), no absolute position reference
+        pose = compute_dead_reckoned_pose();
       }
+      publish_vision_pose(pose);
     }
 
     // Update transforms based on ArduSub pose
@@ -301,12 +322,13 @@ class BaseControllerNew : public rclcpp::Node
     ardu_pose_ = *msg;
   }
 
-  void dvl_velocity_cb(const ros_gz_dvl_bridge::msg::DVLVelocity::ConstSharedPtr & msg)
+  void dvl_velocity_cb(const marine_acoustic_msgs::msg::Dvl::ConstSharedPtr & msg)
   {
     dvl_velocity_ = *msg;
-    RCLCPP_DEBUG(get_logger(), "Received DVL velocity: [%.3f, %.3f, %.3f] valid=%d mode=%d alt=%.3f fom=%.6f",
-                 msg->velocity.x, msg->velocity.y, msg->velocity.z, 
-                 msg->velocity_valid, msg->tracking_mode, msg->altitude, msg->figure_of_merit);
+    double figure_of_merit = msg->num_good_beams / 4.0;
+    RCLCPP_DEBUG(get_logger(), "Received DVL velocity: [%.3f, %.3f, %.3f] beams=%d mode=%d alt=%.3f fom=%.6f",
+                 msg->velocity.x, msg->velocity.y, msg->velocity.z,
+                 msg->num_good_beams, msg->velocity_mode, msg->altitude, figure_of_merit);
   }
 
   void init_parameters()
@@ -349,6 +371,7 @@ public:
   {
     // Suppress IDE warnings
     (void) ardu_pose_sub_;
+    (void) gazebo_odom_sub_;
     (void) timer_;
 
     init_parameters();
@@ -359,8 +382,13 @@ public:
     // Set initial pose at surface (z=0)
     tf_odom_base_.getOrigin().setZ(0.0);
 
-    // Initialize EKF warm-up
-    RCLCPP_INFO(get_logger(), "EKF warm-up: Sending default odometry until EKF initializes");
+    if (cxt_.vision_pose_for_ekf_) {
+      RCLCPP_INFO(get_logger(), "Sending VISION_POSITION_ESTIMATE via vision_pose for EKF position aiding%s",
+        cxt_.vision_pose_from_gazebo_odom_ ? " (from Gazebo ground truth)"
+        : " (dead reckoning from DVL/cmd_vel, no absolute position ref)");
+    } else {
+      RCLCPP_INFO(get_logger(), "vision_pose disabled - EKF velocity-only (EK3_SRC1_POSXY=0). Run set_ekf_origin.py for warmup.");
+    }
 
     // Initialize TF2
     tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(this);
@@ -377,6 +405,8 @@ public:
       "/mavros/setpoint_raw/local", reliable);
     odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", reliable);
     mavros_odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("/mavros/odometry/out", reliable);
+    vision_pose_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>(
+      "/mavros/vision_pose/pose", reliable);
 
     // Create service
     conn_srv_ = create_service<std_srvs::srv::SetBool>(
@@ -422,11 +452,19 @@ public:
         ardu_pose_cb(msg);
       });
 
-    dvl_velocity_sub_ = create_subscription<ros_gz_dvl_bridge::msg::DVLVelocity>(
+    dvl_velocity_sub_ = create_subscription<marine_acoustic_msgs::msg::Dvl>(
       "/dvl/velocity", best_effort,
-      [this](ros_gz_dvl_bridge::msg::DVLVelocity::ConstSharedPtr msg) -> void
+      [this](marine_acoustic_msgs::msg::Dvl::ConstSharedPtr msg) -> void
       {
         dvl_velocity_cb(msg);
+      });
+
+    gazebo_odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
+      "/model/orca4/odometry", best_effort,
+      [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) -> void
+      {
+        gazebo_odom_ = *msg;
+        have_gazebo_odom_ = true;
       });
 
     RCLCPP_INFO(get_logger(), "base_controller_new ready");

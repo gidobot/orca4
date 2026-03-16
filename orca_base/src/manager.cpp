@@ -178,7 +178,17 @@ class Manager : public rclcpp::Node
 
   void go_auv()
   {
-    if (ardusub_connected_ && have_pose_) {
+    if (!ardusub_connected_) {
+      RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 5000,
+        "Waiting for ArduSub connection before transitioning to AUV");
+      return;
+    }
+    if (!have_pose_) {
+      RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 5000,
+        "Waiting for EKF pose (/mavros/local_position/pose) before transitioning to AUV");
+      return;
+    }
+    {
       if (!ardusub_armed_) {
         set_arm(true);
       }
@@ -342,6 +352,9 @@ class Manager : public rclcpp::Node
     // Execute the goal
     target_mode_ = goal_handle->get_goal()->target_mode;
     goal_handle_ = goal_handle;
+    const char * mode_str = target_mode_ == orca_msgs::action::TargetMode::Goal::ORCA_MODE_AUV ? "AUV" :
+      target_mode_ == orca_msgs::action::TargetMode::Goal::ORCA_MODE_ROV ? "ROV" : "DISARMED";
+    RCLCPP_INFO(get_logger(), "TargetMode goal received: %s", mode_str);
   }
 
   void post_construction_cb()
