@@ -1,4 +1,11 @@
-# TODO(clyde): can I force mavros to use RELIABLE? This would simplify things
+# Odometry topics use best_effort to match MAVROS and avoid DDS issues
+/odom:
+  reliability: best_effort
+  history: keep_all
+
+/odometry/filtered:
+  reliability: best_effort
+  history: keep_all
 
 /mavros/battery:
   reliability: best_effort

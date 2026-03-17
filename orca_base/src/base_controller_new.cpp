@@ -53,7 +53,8 @@ class BaseControllerNew : public rclcpp::Node
 
   rclcpp::Service<std_srvs::srv::SetBool>::SharedPtr conn_srv_;
   rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_sub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr external_odom_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr feedback_odom_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr vision_pose_sub_;
 
   rclcpp::Publisher<mavros_msgs::msg::PositionTarget>::SharedPtr velocity_pub_;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub_;
@@ -106,7 +107,7 @@ class BaseControllerNew : public rclcpp::Node
     tf_broadcaster_->sendTransform(tm);
   }
 
-  void external_odom_cb(const nav_msgs::msg::Odometry::ConstSharedPtr & msg)
+  void feedback_odom_cb(const nav_msgs::msg::Odometry::ConstSharedPtr & msg)
   {
     tf_odom_base_ = orca::pose_msg_to_transform(msg->pose.pose);
     tf_map_odom_.setIdentity();
@@ -122,7 +123,16 @@ class BaseControllerNew : public rclcpp::Node
     odom_msg.twist.twist = msg->twist.twist;
     odom_pub_->publish(odom_msg);
 
-    publish_vision_pose(msg->pose.pose, rclcpp::Time(msg->header.stamp));
+    if (cxt_.feedback_source_ == "uwlocalization") {
+      publish_vision_pose(msg->pose.pose, rclcpp::Time(msg->header.stamp));
+    }
+  }
+
+  void vision_pose_cb(const nav_msgs::msg::Odometry::ConstSharedPtr & msg)
+  {
+    if (cxt_.feedback_source_ == "mavros") {
+      publish_vision_pose(msg->pose.pose, rclcpp::Time(msg->header.stamp));
+    }
   }
 
   void init_parameters()
@@ -147,6 +157,11 @@ class BaseControllerNew : public rclcpp::Node
   void validate_parameters()
   {
     transform_expiration_ = {std::chrono::milliseconds{cxt_.transform_expiration_ms_}};
+    if (cxt_.feedback_source_ != "uwlocalization" && cxt_.feedback_source_ != "mavros") {
+      RCLCPP_WARN(get_logger(), "feedback_source '%s' invalid, using 'uwlocalization'",
+                  cxt_.feedback_source_.c_str());
+      cxt_.feedback_source_ = "uwlocalization";
+    }
   }
 
 public:
@@ -168,7 +183,7 @@ public:
 
     velocity_pub_ = create_publisher<mavros_msgs::msg::PositionTarget>(
       "/mavros/setpoint_raw/local", reliable);
-    odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", reliable);
+    odom_pub_ = create_publisher<nav_msgs::msg::Odometry>("odom", best_effort);
     vision_pose_pub_ = create_publisher<geometry_msgs::msg::PoseWithCovarianceStamped>(
       "/mavros/vision_pose/pose_cov", reliable);
 
@@ -198,13 +213,23 @@ public:
         publish_velocity(*msg);
       });
 
-    external_odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
-      "/odometry/filtered", best_effort,
-      [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) { external_odom_cb(msg); });
+    const std::string feedback_topic = (cxt_.feedback_source_ == "mavros")
+      ? "/mavros/local_position/odom" : "/odometry/filtered";
+    feedback_odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
+      feedback_topic, best_effort,
+      [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) { feedback_odom_cb(msg); });
 
-    RCLCPP_INFO(get_logger(), "base_controller ready (external odometry from /odometry/filtered)");
+    if (cxt_.feedback_source_ == "mavros") {
+      vision_pose_sub_ = create_subscription<nav_msgs::msg::Odometry>(
+        "/odometry/filtered", best_effort,
+        [this](nav_msgs::msg::Odometry::ConstSharedPtr msg) { vision_pose_cb(msg); });
+    }
+
+    RCLCPP_INFO(get_logger(), "base_controller ready (feedback_source=%s, TF/odom from %s)",
+                cxt_.feedback_source_.c_str(), feedback_topic.c_str());
     RCLCPP_INFO(get_logger(), "Publishing: /mavros/setpoint_raw/local, odom, /mavros/vision_pose/pose_cov");
-    RCLCPP_INFO(get_logger(), "Subscribing: cmd_vel, /odometry/filtered");
+    RCLCPP_INFO(get_logger(), "Subscribing: cmd_vel, %s%s", feedback_topic.c_str(),
+                (cxt_.feedback_source_ == "mavros") ? ", /odometry/filtered (vision_pose)" : "");
     RCLCPP_INFO(get_logger(), "TF: map->odom->base_link");
   }
 };

@@ -17,3 +17,9 @@ base_controller:
     camera_frame_id: "left_camera_link"
 
     transform_expiration_ms: 0
+
+    # feedback_source: "uwlocalization" (default) or "mavros"
+    # uwlocalization: TF/odom from /odometry/filtered (uwlocalization)
+    # mavros: TF/odom from /mavros/local_position/odom (ArduPilot EKF, smoother)
+    # Vision pose (for ArduPilot EKF fusion) always from /odometry/filtered
+    feedback_source: "mavros"
