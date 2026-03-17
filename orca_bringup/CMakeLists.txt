@@ -16,6 +16,7 @@ install(
   scripts/dump_rosout.py
   scripts/mission_runner.py
   scripts/set_ekf_origin.py
+  scripts/set_mavros_stream_rate.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -33,7 +33,13 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, ExecuteProcess, IncludeLaunchDescription, SetEnvironmentVariable
+from launch.actions import (
+    DeclareLaunchArgument,
+    ExecuteProcess,
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+    TimerAction,
+)
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
@@ -108,6 +114,12 @@ def generate_launch_description():
             description='Nav2 params file (use sim_nav2_params.yaml for simulation)',
         ),
 
+        DeclareLaunchArgument(
+            'mavros_stream_rate',
+            default_value='20',
+            description='MAVROS RAW_SENSORS stream rate (Hz). Set 0 to disable. Increases /mavros/imu/static_pressure rate.',
+        ),
+
         # Translate messages MAV <-> ROS
         Node(
             package='mavros',
@@ -116,6 +128,21 @@ def generate_launch_description():
             # mavros_node is actually many nodes, so we can't override the name
             # name='mavros_node',
             parameters=[mavros_params_file],
+            condition=IfCondition(LaunchConfiguration('mavros')),
+        ),
+
+        # Set MAVROS stream rate after connect (MAVROS overrides SRx_ with low rate on connect)
+        TimerAction(
+            period='8.0',
+            actions=[
+                ExecuteProcess(
+                    cmd=[
+                        'ros2', 'run', 'orca_bringup', 'set_mavros_stream_rate.py',
+                        '--rate', LaunchConfiguration('mavros_stream_rate'),
+                    ],
+                    output='log',
+                ),
+            ],
             condition=IfCondition(LaunchConfiguration('mavros')),
         ),
 

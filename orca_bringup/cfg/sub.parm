@@ -81,18 +81,25 @@ SERVO8_MIN 1100
 BARO_EXT_BUS 1
 
 # =============================================================================
-# NAVIGATION SOURCE CONFIGURATION (External vision pose from Gazebo ground truth)
+# MAVROS SENSOR STREAM RATE 
 # =============================================================================
-# Position: ExternalNav (vision pose from /mavros/vision_pose/pose)
-# Velocity: ExternalNav (DVL from /mavros/odometry/out)
+SR0_RAW_SENS 20        # stream rate hz
+SR1_RAW_SENS 20        # stream rate hz
+SR2_RAW_SENS 20        # stream rate hz
+
+# =============================================================================
+# NAVIGATION SOURCE CONFIGURATION (External vision pose from uwlocalization)
+# =============================================================================
+# Position: ExternalNav (vision pose from /mavros/vision_pose/pose_cov)
+# Velocity: Baro for vertical; none for horizontal (position-only external nav)
 GPS1_TYPE 0            # Disable GPS
 GPS2_TYPE 0            # Disable GPS2
-VISO_TYPE 1            # Enable external vision/velocity (DVL)
+VISO_TYPE 1            # Enable external vision
 
-EK3_SRC1_POSXY 6      # ExternalNav for position (vision pose - Gazebo ground truth)
-EK3_SRC1_VELXY 6      # ExternalNav for velocity (DVL)
-EK3_SRC1_POSZ 1       # Baro for depth
-EK3_SRC1_VELZ 6       # ExternalNav for vertical velocity (DVL)
+EK3_SRC1_POSXY 6      # ExternalNav for position
+EK3_SRC1_VELXY 0      # None - position-only external nav
+EK3_SRC1_POSZ 6       # ExternalNav for depth
+EK3_SRC1_VELZ 1       # Baro for vertical velocity
 EK3_SRC1_YAW 1        # Compass for yaw  
 
 # Enable compasses
@@ -112,15 +119,15 @@ EK3_IMU_MASK 1        # Use first IMU
 # EXTERNAL NAV CONFIGURATION
 # =============================================================================
 VISO_VEL_M_NSE 0.01   # DVL velocity measurement noise (m/s)
-VISO_POS_M_NSE 0.01   # Position noise (low = trust Gazebo ground truth)
+VISO_POS_M_NSE 0.001  # Position noise (low = high trust in uwlocalization, smoother EKF output)
 VISO_DELAY_MS 0       # Measurement delay
 
 # =============================================================================
 # EKF CONFIGURATION
 # =============================================================================
 EK3_GPS_TYPE 3        # Allow set origin without GPS (for velocity-only mode)
-EK3_VELNE_M_NSE 0.5   # Horizontal velocity process noise
-EK3_VELD_M_NSE 0.7    # Vertical velocity process noise
+EK3_VELNE_M_NSE 0.05   # Horizontal velocity process noise (lower = smoother between position updates)
+EK3_VELD_M_NSE 0.05    # Vertical velocity process noise (lower = smoother)
 
 # IMU Noise Parameters (matching calibrated IMU in model.sdf.in)
 EK3_ACC_P_NSE 0.05    # Accelerometer noise (0.005g stddev)

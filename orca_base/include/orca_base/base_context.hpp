@@ -15,10 +15,9 @@
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, IN AN ACTION OF CONTRACT,
+// TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+// THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #ifndef ORCA_BASE__BASE_CONTEXT_HPP_
 #define ORCA_BASE__BASE_CONTEXT_HPP_
@@ -40,32 +39,20 @@ namespace orca_base
  \
   CXT_MACRO_MEMBER(slam_timeout_ms, int, 1000) \
   CXT_MACRO_MEMBER(transform_expiration_ms, int, 0) \
- \
   CXT_MACRO_MEMBER(timer_rate, int, 20) \
  \
   CXT_MACRO_MEMBER(x_vel, double, 0.4) \
   CXT_MACRO_MEMBER(y_vel, double, 0.4) \
   CXT_MACRO_MEMBER(z_vel, double, 0.2) \
   CXT_MACRO_MEMBER(yaw_vel, double, 0.4) \
- \
   CXT_MACRO_MEMBER(x_accel, double, 0.4) \
   CXT_MACRO_MEMBER(y_accel, double, 0.4) \
   CXT_MACRO_MEMBER(z_accel, double, 0.2) \
   CXT_MACRO_MEMBER(yaw_accel, double, 0.4) \
- \
   CXT_MACRO_MEMBER(coast, bool, false) \
-  /* Coast to decelerate (vs powered decel), useful for ROV ops */ \
- \
   CXT_MACRO_MEMBER(dvl_timeout_ms, int, 1000) \
   CXT_MACRO_MEMBER(dvl_min_figure_of_merit, double, 0.5) \
   CXT_MACRO_MEMBER(dvl_velocity_fusion_weight, double, 1.0) \
-  /* Weight for DVL velocity fusion (0.0 = physics only, 1.0 = DVL only) */ \
- \
-  CXT_MACRO_MEMBER(vision_pose_for_ekf, bool, true) \
-  /* When true, send VISION_POSITION_ESTIMATE for EKF (EK3_SRC1_POSXY=6). When false, EKF uses GPS/internal (EK3_SRC1_POSXY=3). */ \
- \
-  CXT_MACRO_MEMBER(vision_pose_from_gazebo_odom, bool, false) \
-  /* When true, use /model/orca4/odometry (Gazebo ground truth) for vision_pose. When false, use EKF feedback. Use true for sim with no GPS. */ \
 /* End of list */
 
 #undef CXT_MACRO_MEMBER
