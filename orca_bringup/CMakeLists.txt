@@ -16,7 +16,8 @@ install(
   scripts/dump_rosout.py
   scripts/mission_runner.py
   scripts/set_ekf_origin.py
-  scripts/set_mavros_stream_rate.py
+  scripts/configure_mavros.py
+  scripts/debug_gazebo_ardupilot_connection.sh
   DESTINATION lib/${PROJECT_NAME}
 )
 

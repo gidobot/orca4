@@ -473,8 +473,8 @@
     </plugin>
 
     <plugin name="ArduPilotPlugin" filename="libArduPilotPlugin.so">
-      <!-- Port settings -->
-      <fdm_addr>127.0.0.1</fdm_addr>
+      <!-- Port settings: fdm_addr=0.0.0.0 allows ArduPilot in Docker (BlueOS) to connect -->
+      <fdm_addr>@fdm_addr</fdm_addr>
       <fdm_port_in>9002</fdm_port_in>
       <connectionTimeoutMaxCount>5</connectionTimeoutMaxCount>
       <!-- lock_step=0: ArduSub 4.8 sends no_lockstep; plugin must match to avoid frame sync resets -->

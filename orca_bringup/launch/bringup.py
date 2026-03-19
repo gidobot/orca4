@@ -131,13 +131,13 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('mavros')),
         ),
 
-        # Set MAVROS stream rate after connect (MAVROS overrides SRx_ with low rate on connect)
+        # Post-connect MAVROS config: stream rate + COMPASS_EXTERNAL override (BlueOS restores 1)
         TimerAction(
             period='8.0',
             actions=[
                 ExecuteProcess(
                     cmd=[
-                        'ros2', 'run', 'orca_bringup', 'set_mavros_stream_rate.py',
+                        'ros2', 'run', 'orca_bringup', 'configure_mavros.py',
                         '--rate', LaunchConfiguration('mavros_stream_rate'),
                     ],
                     output='log',

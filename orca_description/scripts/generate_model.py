@@ -50,7 +50,7 @@ d135 = d90 + d45
 
 # ~11 deg heading bias correction for gazeboXYZToNED (compass derived from pose in SITL)
 # Adjust sign if correction goes wrong direction
-heading_bias_correction_deg = 10
+heading_bias_correction_deg = 0  # 10 for local SITL; tune after diagnostic confirms heading-offset-only
 gazebo_ned_yaw = d90 + math.radians(heading_bias_correction_deg)
 
 mass = 10
@@ -108,6 +108,9 @@ thrust_coefficient = 0.02
 # Max thrust force, N
 # Both forward and reverse thrust must be the same
 max_thrust = 50
+
+# ArduPilotPlugin: bind address for FDM (0.0.0.0 = accept from Docker/BlueOS)
+fdm_addr = "0.0.0.0"
 
 # ArduPilotPlugin control parameters
 servo_min = 1100

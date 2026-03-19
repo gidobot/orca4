@@ -33,6 +33,10 @@ BTN8_SFUNCTION   0
 BTN9_FUNCTION    23
 BTN9_SFUNCTION   0
 
+# Use simulated compass from Gazebo (not external). Required for SITL when BlueOS
+# or other startup loads COMPASS_EXTERNAL 1. Override via set_ardupilot_param.py.
+COMPASS_EXTERNAL 0
+
 # Well-calibrated compass offsets (minimal residual offsets)
 COMPASS_OFS_X   0.0
 COMPASS_OFS_Y   0.0
@@ -81,13 +85,6 @@ SERVO8_MIN 1100
 BARO_EXT_BUS 1
 
 # =============================================================================
-# MAVROS SENSOR STREAM RATE 
-# =============================================================================
-SR0_RAW_SENS 20        # stream rate hz
-SR1_RAW_SENS 20        # stream rate hz
-SR2_RAW_SENS 20        # stream rate hz
-
-# =============================================================================
 # NAVIGATION SOURCE CONFIGURATION (External vision pose from uwlocalization)
 # =============================================================================
 # Position: ExternalNav (vision pose from /mavros/vision_pose/pose_cov)
@@ -102,9 +99,10 @@ EK3_SRC1_POSZ 6       # ExternalNav for depth
 EK3_SRC1_VELZ 1       # Baro for vertical velocity
 EK3_SRC1_YAW 1        # Compass for yaw  
 
-# Enable compasses
-COMPASS_USE 1
-COMPASS_USE2 0
+# Use compass2 for Gazebo sim (compass1 may be overwritten by BlueOS as external).
+# Both SITL mag instances receive the same bodyMagField from Gazebo; we select compass2.
+COMPASS_USE 0
+COMPASS_USE2 1
 COMPASS_USE3 0
 
 # =============================================================================
