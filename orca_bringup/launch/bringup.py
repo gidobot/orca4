@@ -120,6 +120,12 @@ def generate_launch_description():
             description='MAVROS RAW_SENSORS stream rate (Hz). Set 0 to disable. Increases /mavros/imu/static_pressure rate.',
         ),
 
+        DeclareLaunchArgument(
+            'mission',
+            default_value='True',
+            description='Launch mission_coordinator and structure_survey_controller?',
+        ),
+
         # Translate messages MAV <-> ROS
         Node(
             package='mavros',
@@ -236,6 +242,26 @@ def generate_launch_description():
         #     ],
         #     condition=IfCondition(LaunchConfiguration('slam')),
         # ),
+
+        # Mission coordinator: dispatches ExecuteMission goals to sub-controllers
+        Node(
+            package='orca_base',
+            executable='mission_coordinator',
+            output='screen',
+            name='mission_coordinator',
+            parameters=[orca_params_file],
+            condition=IfCondition(LaunchConfiguration('mission')),
+        ),
+
+        # Structure survey controller: holds distance from structure, traverses
+        Node(
+            package='orca_base',
+            executable='structure_survey_controller',
+            output='screen',
+            name='structure_survey_controller',
+            parameters=[orca_params_file],
+            condition=IfCondition(LaunchConfiguration('mission')),
+        ),
 
         # Include the rest of Nav2
         IncludeLaunchDescription(

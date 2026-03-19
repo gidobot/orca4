@@ -14,6 +14,7 @@ ament_auto_find_build_dependencies()
 
 find_package(camera_info_manager REQUIRED)
 find_package(mavros_msgs REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 ament_auto_add_executable(
   base_controller
@@ -46,6 +47,22 @@ ament_auto_add_executable(
 )
 
 target_include_directories(manager PRIVATE include)
+
+ament_auto_add_executable(
+  mission_coordinator
+  src/mission_coordinator.cpp
+)
+
+target_include_directories(mission_coordinator PRIVATE include)
+target_link_libraries(mission_coordinator yaml-cpp::yaml-cpp)
+
+ament_auto_add_executable(
+  structure_survey_controller
+  src/structure_survey_controller.cpp
+)
+
+target_include_directories(structure_survey_controller PRIVATE include)
+ament_target_dependencies(structure_survey_controller tf2 tf2_ros tf2_geometry_msgs)
 
 # Load & run linters listed in package.xml
 if(BUILD_TESTING)

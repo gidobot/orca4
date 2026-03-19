@@ -1,0 +1,42 @@
+# Goal
+# ---------------------------------------------------------------------------
+# Selects which mission controller handles this goal and supplies its params.
+#
+# Registered mission_type values:
+#   "waypoint_nav"      -- Navigate to a single pose via Nav2 navigate_to_pose
+#   "waypoint_seq"      -- Follow a sequence of poses via Nav2 follow_waypoints
+#   "structure_survey"  -- Hold distance from structure, traverse along it
+#
+# mission_params_yaml: YAML string with parameters specific to the mission type.
+#
+# waypoint_nav schema:
+#   frame_id: "map"      # coordinate frame for the goal pose (default: "map")
+#   x: 0.0               # position x (metres)
+#   y: 0.0               # position y (metres)
+#   z: -1.0              # position z (metres, negative = depth)
+#   yaw: 0.0             # heading (radians)
+#
+# waypoint_seq schema:
+#   frame_id: "map"
+#   waypoints:
+#     - {x: 0.0, y: 0.0, z: -1.0, yaw: 0.0}
+#     - {x: 1.0, y: 2.0, z: -1.0, yaw: 0.0}
+#
+# structure_survey schema:
+#   setpoint_distance: 1.5     # metres from structure to hold
+#   traverse_distance: 5.0     # total metres to traverse along structure
+#   traverse_direction_x: 0.0  # body-frame traverse unit vector (surge component)
+#   traverse_direction_y: 1.0  # body-frame traverse unit vector (sway component)
+#   traverse_direction_z: 0.0  # body-frame traverse unit vector (heave component)
+#   setpoint_yaw: 0.0          # heading to maintain (radians, map frame)
+# ---------------------------------------------------------------------------
+string mission_type
+string mission_params_yaml
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string status       # human-readable status string
+float32 progress_pct  # 0-100

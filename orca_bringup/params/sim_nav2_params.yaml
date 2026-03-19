@@ -31,8 +31,8 @@ controller_server:
     # Progress checker parameters
     progress_checker:
       plugin: "orca_nav2::ProgressChecker3D"
-      radius: 0.5
-      time_allowance: 10.0
+      radius: 0.3
+      time_allowance: 30.0
 
     # Goal checker parameters
     goal_checker:
@@ -44,7 +44,7 @@ controller_server:
     FollowPath:
       plugin: "orca_nav2::PurePursuitController3D"
       lookahead_dist: 1.0
-      transform_tolerance: 1.0
+      transform_tolerance: 3.0
       goal_tolerance: 0.2
       tick_rate: 20.0  # Loop rate, must match controller_frequency
 

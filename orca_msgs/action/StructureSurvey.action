@@ -1,0 +1,29 @@
+# Goal
+# ---------------------------------------------------------------------------
+# Sent by MissionCoordinator to StructureSurveyController.
+# ---------------------------------------------------------------------------
+
+# Distance to hold from the structure (metres)
+float64 setpoint_distance
+
+# Total distance to travel along the structure (metres)
+float64 traverse_distance
+
+# Traverse unit vector expressed in vehicle body frame.
+# Typical usage: pure sway  = {x:0, y:1, z:0}
+#                reverse     = {x:0, y:-1, z:0}
+geometry_msgs/Vector3 traverse_direction
+
+# Heading to maintain throughout the survey (radians, map frame)
+float64 setpoint_yaw
+---
+# Result
+bool success
+string message
+float64 distance_traversed   # metres actually traversed when action ended
+---
+# Feedback
+float64 current_distance      # current sensor-measured distance to structure (m)
+float64 traverse_progress_m   # metres traversed so far
+float64 heading_error_rad     # current yaw error (rad)
+string  phase                 # "waiting_for_sensor" | "controlling" | "complete"

@@ -3,6 +3,7 @@
 # MIT License
 #
 # Copyright (c) 2022 Clyde McQueen
+# Copyright (c) 2024 ACFR
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,77 +24,167 @@
 # SOFTWARE.
 
 """
-Run the "huge loop" mission
+Run missions via the MissionCoordinator.
 
-Code inspired by https://github.com/ros2/ros2cli/blob/rolling/ros2action/ros2action/verb/send_goal.py
+The script talks to two action servers:
+  /set_target_mode  (orca_msgs/action/TargetMode)   -- arms the vehicle (unchanged)
+  /execute_mission  (orca_msgs/action/ExecuteMission) -- dispatches to sub-controllers
+
+Mission types accepted by /execute_mission:
+  "waypoint_nav"      Single pose goal via Nav2 navigate_to_pose
+  "waypoint_seq"      Ordered pose sequence via Nav2 follow_waypoints
+  "structure_survey"  Hold distance from structure while traversing
 
 Usage:
--- ros2 run orca_bringup mission_runner.py
+  ros2 run orca_bringup mission_runner.py
+  ros2 run orca_bringup mission_runner.py --mission huge_loop
+  ros2 run orca_bringup mission_runner.py --mission structure_survey
 """
 
+import argparse
+import sys
+import textwrap
 from enum import Enum
 
 import rclpy
 import rclpy.logging
+import yaml
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import Point, Pose, PoseStamped
-from nav2_msgs.action import FollowWaypoints
-from orca_msgs.action import TargetMode
+from orca_msgs.action import ExecuteMission, TargetMode
 from rclpy.action import ActionClient
-from std_msgs.msg import Header
 
 
-class SendGoalResult(Enum):
-    SUCCESS = 0     # Goal succeeded
-    FAILURE = 1     # Goal failed
-    CANCELED = 2    # Goal canceled (KeyboardInterrupt exception)
+# ---------------------------------------------------------------------------
+# Mission parameter helpers
+# ---------------------------------------------------------------------------
+
+def waypoint_nav_params(x: float, y: float, z: float,
+                        yaw: float = 0.0, frame_id: str = 'map') -> str:
+    """Return a YAML string for a single-pose waypoint_nav mission."""
+    return yaml.dump({'frame_id': frame_id, 'x': x, 'y': y, 'z': z, 'yaw': yaw})
 
 
-def make_pose(x: float, y: float, z: float):
-    return PoseStamped(header=Header(frame_id='map'), pose=Pose(position=Point(x=x, y=y, z=z)))
+def waypoint_seq_params(waypoints: list, frame_id: str = 'map') -> str:
+    """
+    Return a YAML string for a waypoint_seq mission.
+
+    waypoints -- list of dicts with keys x, y, z, and optionally yaw.
+    Example:
+        waypoint_seq_params([
+            {'x': 0.0,  'y': 0.0,  'z': -7.0},
+            {'x': 20.0, 'y': -13.0,'z': -7.0},
+        ])
+    """
+    pts = [{'x': float(w.get('x', 0)), 'y': float(w.get('y', 0)),
+            'z': float(w.get('z', 0)), 'yaw': float(w.get('yaw', 0))}
+           for w in waypoints]
+    return yaml.dump({'frame_id': frame_id, 'waypoints': pts})
 
 
-# Go to AUV mode
+def structure_survey_params(setpoint_distance: float,
+                            traverse_distance: float,
+                            traverse_direction_y: float = 1.0,
+                            traverse_direction_x: float = 0.0,
+                            setpoint_yaw: float = 0.0) -> str:
+    """Return a YAML string for a structure_survey mission."""
+    return yaml.dump({
+        'setpoint_distance': float(setpoint_distance),
+        'traverse_distance': float(traverse_distance),
+        'traverse_direction_x': float(traverse_direction_x),
+        'traverse_direction_y': float(traverse_direction_y),
+        'traverse_direction_z': 0.0,
+        'setpoint_yaw': float(setpoint_yaw),
+    })
+
+
+# ---------------------------------------------------------------------------
+# Pre-built mission goals
+# ---------------------------------------------------------------------------
+
+# Arm the vehicle for autonomous operation
 go_auv = TargetMode.Goal()
 go_auv.target_mode = TargetMode.Goal.ORCA_MODE_AUV
 
-# Go to ROV mode
+# Return to pilot control
 go_rov = TargetMode.Goal()
 go_rov.target_mode = TargetMode.Goal.ORCA_MODE_ROV
 
-# Go home (1m deep)
-go_home = FollowWaypoints.Goal()
-go_home.poses.append(make_pose(x=0.0, y=0.0, z=-1.0))
 
-# Dive to 8m
-dive = FollowWaypoints.Goal()
-dive.poses.append(make_pose(x=0.0, y=0.0, z=-8.0))
+def make_execute_mission(mission_type: str, params_yaml: str) -> ExecuteMission.Goal:
+    goal = ExecuteMission.Goal()
+    goal.mission_type = mission_type
+    goal.mission_params_yaml = params_yaml
+    return goal
 
-# Big loop, will eventually result in a loop closure
-delay_loop = FollowWaypoints.Goal()
-delay_loop.poses.append(make_pose(x=0.0, y=0.0, z=-7.0))
+
+# "huge loop" mission — replicates the original mission_runner.py trajectory
+huge_loop_waypoints = [{'x': 0.0, 'y': 0.0, 'z': -7.0}]
 for _ in range(2):
-    delay_loop.poses.append(make_pose(x=20.0, y=-13.0, z=-7.0))
-    delay_loop.poses.append(make_pose(x=10.0, y=-23.0, z=-7.0))
-    delay_loop.poses.append(make_pose(x=-10.0, y=-8.0, z=-7.0))
-    delay_loop.poses.append(make_pose(x=0.0, y=0.0, z=-7.0))
+    huge_loop_waypoints += [
+        {'x': 20.0, 'y': -13.0, 'z': -7.0},
+        {'x': 10.0, 'y': -23.0, 'z': -7.0},
+        {'x': -10.0, 'y': -8.0, 'z': -7.0},
+        {'x': 0.0,  'y':  0.0,  'z': -7.0},
+    ]
+
+mission_huge_loop = make_execute_mission(
+    'waypoint_seq',
+    waypoint_seq_params(huge_loop_waypoints)
+)
+
+# Structure survey mission — hold 1.5 m from forward structure, sway 10 m
+mission_structure_survey = make_execute_mission(
+    'structure_survey',
+    structure_survey_params(
+        setpoint_distance=1.5,
+        traverse_distance=10.0,
+        traverse_direction_y=1.0,  # sway left
+        setpoint_yaw=0.0,
+    )
+)
+
+# Go home first (single pose, 1 m deep)
+mission_go_home = make_execute_mission(
+    'waypoint_nav',
+    waypoint_nav_params(x=0.0, y=0.0, z=-1.0)
+)
+
+MISSIONS = {
+    'huge_loop':       mission_huge_loop,
+    'structure_survey': mission_structure_survey,
+    'go_home':         mission_go_home,
+}
 
 
-# Send a goal to an action server and wait for the result.
-# Cancel the goal if the user hits ^C (KeyboardInterrupt).
-def send_goal(node, action_client, send_goal_msg) -> SendGoalResult:
+# ---------------------------------------------------------------------------
+# Action client helper (identical pattern to original)
+# ---------------------------------------------------------------------------
+
+class SendGoalResult(Enum):
+    SUCCESS = 0
+    FAILURE = 1
+    CANCELED = 2
+
+
+def send_goal(node, action_client, send_goal_msg, print_feedback=True) -> SendGoalResult:
     goal_handle = None
 
     try:
         action_client.wait_for_server()
 
         print('Sending goal...')
-        goal_future = action_client.send_goal_async(send_goal_msg)
+        goal_future = action_client.send_goal_async(
+            send_goal_msg,
+            feedback_callback=lambda fb: print(
+                f'  feedback: {fb.feedback.status}  {fb.feedback.progress_pct:.0f}%'
+            ) if print_feedback else None
+        )
         rclpy.spin_until_future_complete(node, goal_future)
         goal_handle = goal_future.result()
 
         if goal_handle is None:
-            raise RuntimeError('Exception while sending goal: {!r}'.format(goal_future.exception()))
+            raise RuntimeError(
+                'Exception while sending goal: {!r}'.format(goal_future.exception()))
 
         if not goal_handle.accepted:
             print('Goal rejected')
@@ -106,66 +197,91 @@ def send_goal(node, action_client, send_goal_msg) -> SendGoalResult:
         result = result_future.result()
 
         if result is None:
-            raise RuntimeError('Exception while getting result: {!r}'.format(result_future.exception()))
+            raise RuntimeError(
+                'Exception while getting result: {!r}'.format(result_future.exception()))
 
-        print('Goal completed')
-        return SendGoalResult.SUCCESS
+        success = result.result.success if hasattr(result.result, 'success') else (
+            result.status == GoalStatus.STATUS_SUCCEEDED)
+        msg = getattr(result.result, 'message', '')
+        print(f'Goal completed: success={success}  "{msg}"')
+        return SendGoalResult.SUCCESS if success else SendGoalResult.FAILURE
 
     except KeyboardInterrupt:
-        # Cancel the goal if it's still active
-        # TODO(clyde): this seems to work, but a second exception is generated -- why?
         if (goal_handle is not None and
-                (GoalStatus.STATUS_ACCEPTED == goal_handle.status or
-                 GoalStatus.STATUS_EXECUTING == goal_handle.status)):
+                goal_handle.status in (GoalStatus.STATUS_ACCEPTED,
+                                       GoalStatus.STATUS_EXECUTING)):
             print('Canceling goal...')
             cancel_future = goal_handle.cancel_goal_async()
             rclpy.spin_until_future_complete(node, cancel_future)
             cancel_response = cancel_future.result()
 
             if cancel_response is None:
-                raise RuntimeError('Exception while canceling goal: {!r}'.format(cancel_future.exception()))
-
+                raise RuntimeError(
+                    'Exception while canceling: {!r}'.format(cancel_future.exception()))
             if len(cancel_response.goals_canceling) == 0:
                 raise RuntimeError('Failed to cancel goal')
-            if len(cancel_response.goals_canceling) > 1:
-                raise RuntimeError('More than one goal canceled')
-            if cancel_response.goals_canceling[0].goal_id != goal_handle.goal_id:
-                raise RuntimeError('Canceled goal with incorrect goal ID')
 
             print('Goal canceled')
             return SendGoalResult.CANCELED
 
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
 def main():
+    parser = argparse.ArgumentParser(
+        description=textwrap.dedent("""\
+            Run a mission via the MissionCoordinator.
+            Available missions: {}
+        """.format(', '.join(MISSIONS.keys())))
+    )
+    parser.add_argument(
+        '--mission', default='huge_loop',
+        choices=list(MISSIONS.keys()),
+        help='Which mission to run (default: huge_loop)',
+    )
+    # Strip ROS args before parsing
+    args = parser.parse_args(
+        [a for a in sys.argv[1:] if not a.startswith('--ros-args')])
+
     node = None
-    set_target_mode = None
-    follow_waypoints = None
+    set_target_mode_client = None
+    execute_mission_client = None
 
     rclpy.init()
 
     try:
-        node = rclpy.create_node("mission_runner")
+        node = rclpy.create_node('mission_runner')
 
-        set_target_mode = ActionClient(node, TargetMode, '/set_target_mode')
-        follow_waypoints = ActionClient(node, FollowWaypoints, '/follow_waypoints')
+        set_target_mode_client = ActionClient(node, TargetMode, '/set_target_mode')
+        execute_mission_client = ActionClient(node, ExecuteMission, '/execute_mission')
 
-        print('>>> Setting mode to AUV <<<')
-        if send_goal(node, set_target_mode, go_auv) == SendGoalResult.SUCCESS:
-            print('>>> Executing mission <<<')
-            send_goal(node, follow_waypoints, delay_loop)
+        print(f'>>> Setting mode to AUV <<<')
+        if send_goal(node, set_target_mode_client, go_auv,
+                     print_feedback=False) == SendGoalResult.SUCCESS:
+
+            print(f'>>> Executing mission: {args.mission} <<<')
+            result = send_goal(node, execute_mission_client, MISSIONS[args.mission])
+
+            if result == SendGoalResult.CANCELED:
+                print('>>> Mission canceled <<<')
+            elif result == SendGoalResult.FAILURE:
+                print('>>> Mission failed <<<')
+            else:
+                print('>>> Mission complete <<<')
 
             print('>>> Setting mode to ROV <<<')
-            send_goal(node, set_target_mode, go_rov)
+            send_goal(node, set_target_mode_client, go_rov, print_feedback=False)
 
-            print('>>> Mission complete <<<')
         else:
             print('>>> Failed to set mode to AUV, quit <<<')
 
     finally:
-        if set_target_mode is not None:
-            set_target_mode.destroy()
-        if follow_waypoints is not None:
-            follow_waypoints.destroy()
+        if execute_mission_client is not None:
+            execute_mission_client.destroy()
+        if set_target_mode_client is not None:
+            set_target_mode_client.destroy()
         if node is not None:
             node.destroy_node()
 

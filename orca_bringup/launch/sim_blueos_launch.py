@@ -112,6 +112,12 @@ def generate_launch_description():
         ),
 
         DeclareLaunchArgument(
+            'mission',
+            default_value='True',
+            description='Launch mission_coordinator and structure_survey_controller?',
+        ),
+
+        DeclareLaunchArgument(
             'ardusub_delay',
             default_value='0.0',
             description='Seconds to delay ArduSub after launch (allows Gazebo to load first, reducing controller resets)',
@@ -278,6 +284,7 @@ def generate_launch_description():
                 'base': LaunchConfiguration('base'),
                 'mavros': LaunchConfiguration('mavros'),
                 'mavros_params_file': mavros_params_file,
+                'mission': LaunchConfiguration('mission'),
                 'nav': LaunchConfiguration('nav'),
                 'nav2_params_file': sim_nav2_params_file,
                 'orca_params_file': orca_params_file,

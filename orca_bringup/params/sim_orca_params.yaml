@@ -23,3 +23,46 @@ base_controller:
     # mavros: TF/odom from /mavros/local_position/odom (ArduPilot EKF, smoother)
     # Vision pose (for ArduPilot EKF fusion) always from /odometry/filtered
     feedback_source: "mavros"
+
+mission_coordinator:
+  ros__parameters:
+    use_sim_time: true
+
+structure_survey_controller:
+  ros__parameters:
+    use_sim_time: true
+
+    # Range sensor source: "range" (sensor_msgs/Range) or "depth_image" (sensor_msgs/Image)
+    # Switch to "depth_image" once a forward-facing depth camera is available.
+    range_sensor_type: "range"
+
+    # Topic names (relative to node namespace)
+    range_topic: "forward_range"
+    depth_image_topic: "forward_camera/depth/image_raw"
+
+    # Half-size (pixels) of the centre region-of-interest used when
+    # extracting range from a depth image. Median of the ROI is used.
+    depth_image_roi_half: 5
+
+    # Velocity limits
+    max_surge_vel: 0.3    # m/s – surge (forward/back for distance hold)
+    max_sway_vel:  0.3    # m/s – sway (lateral traverse)
+    max_yaw_rate:  0.25   # rad/s
+
+    # Constant lateral speed during traverse
+    traverse_vel: 0.2     # m/s
+
+    # Control loop frequency
+    control_hz: 20.0
+
+    # Distance-hold PID (drives surge to maintain setpoint_distance)
+    pid_distance_kp: 1.0
+    pid_distance_ki: 0.0
+    pid_distance_kd: 0.1
+    pid_distance_integral_limit: 0.5
+
+    # Yaw-hold PID (drives yaw_rate to maintain setpoint_yaw)
+    pid_yaw_kp: 2.0
+    pid_yaw_ki: 0.0
+    pid_yaw_kd: 0.2
+    pid_yaw_integral_limit: 0.5
